@@ -1,0 +1,12 @@
+# Ignore build artefacts and output
+*.sms
+*.zip
+*.png
+build/
+sound_data/
+tile_data/
+game_tile_data/
+!tiles/*.png
+!tools/**
+tools/**/*.o
+
