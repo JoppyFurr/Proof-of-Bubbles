@@ -19,7 +19,9 @@ uint8_t cursor_y = 0;
 
 typedef enum bubble_e {
     BUBBLE_NONE = 0,
-    BUBBLE_CYAN
+    BUBBLE_CYAN,
+    BUBBLE_RED,
+    BUBBLE_GREEN,
 } bubble_t;
 
 #define BOARD_ROWS 11
@@ -104,34 +106,18 @@ void set_bubble (uint8_t x, uint8_t y, bubble_t bubble)
     }
     right_strip = left_strip + BYTES_PER_STRIP;
 
-    if (bubble == BUBBLE_NONE)
-    {
-        /* Left strip */
-        SMS_VRAMmemcpy (left_strip,      &bubbles_patterns [bubbles_panels [0 + neigh_tl] [0] << 3], 32);
-        SMS_VRAMmemcpy (left_strip + 32, &bubbles_patterns [bubbles_panels [0 + neigh_bl] [2] << 3], 32);
+    /* Bubble panels are laid out in a square grid.
+     *  - Each row contains the bubble to draw {none, cyan, red, green}
+     *  - Each column contains the specific neighbour {none, cyan, red, green}
+     */
 
-        /* Right strip */
-        SMS_VRAMmemcpy (right_strip,      &bubbles_patterns [bubbles_panels [0 + neigh_tr] [1] << 3], 32);
-        SMS_VRAMmemcpy (right_strip + 32, &bubbles_patterns [bubbles_panels [0 + neigh_br] [3] << 3], 32);
-    }
-    else if (bubble == BUBBLE_CYAN)
-    {
-        /* To Consider:
-         *  - Can the shift be done when the patterns are generated?
-         *    As in, give store uint32_t indices rather than pattern indices.
-         *  - Cartridge-space is cheap, if the strips are laid out correctly in
-         *    the cartridge data, in all bubble-combinations, then two memcpy
-         *    could be used instead of four.
-         */
+    /* Left strip */
+    SMS_VRAMmemcpy (left_strip,      &bubbles_patterns [bubbles_panels [bubble * 4 + neigh_tl] [0] << 3], 32);
+    SMS_VRAMmemcpy (left_strip + 32, &bubbles_patterns [bubbles_panels [bubble * 4 + neigh_bl] [2] << 3], 32);
 
-        /* Left strip */
-        SMS_VRAMmemcpy (left_strip,      &bubbles_patterns [bubbles_panels [2 + neigh_tl] [0] << 3], 32);
-        SMS_VRAMmemcpy (left_strip + 32, &bubbles_patterns [bubbles_panels [2 + neigh_bl] [2] << 3], 32);
-
-        /* Right strip */
-        SMS_VRAMmemcpy (right_strip,      &bubbles_patterns [bubbles_panels [2 + neigh_tr] [1] << 3], 32);
-        SMS_VRAMmemcpy (right_strip + 32, &bubbles_patterns [bubbles_panels [2 + neigh_br] [3] << 3], 32);
-    }
+    /* Right strip */
+    SMS_VRAMmemcpy (right_strip,      &bubbles_patterns [bubbles_panels [bubble * 4 + neigh_tr] [1] << 3], 32);
+    SMS_VRAMmemcpy (right_strip + 32, &bubbles_patterns [bubbles_panels [bubble * 4 + neigh_br] [3] << 3], 32);
 }
 
 
@@ -237,7 +223,14 @@ void main (void)
 
         if (key_pressed & PORT_A_KEY_1)
         {
-            set_bubble (cursor_x, cursor_y, BUBBLE_CYAN);
+            /* Cycle through bubble colours */
+            static uint8_t next_bubble = BUBBLE_CYAN;
+            set_bubble (cursor_x, cursor_y, next_bubble & 0x03);
+            next_bubble++;
+            if (next_bubble > BUBBLE_GREEN)
+            {
+                next_bubble = BUBBLE_CYAN;
+            }
         }
         else if (key_pressed & PORT_A_KEY_2)
         {
