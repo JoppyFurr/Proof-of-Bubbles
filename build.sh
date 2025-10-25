@@ -40,7 +40,7 @@ build_bubbles_for_master_system ()
             --sprite-palette ${GAME_SPRITE_PALETTE} \
             --background-palette ${GAME_BACKGROUND_PALETTE} \
             --panels 1x2,8 tiles/cursor.png \
-            --panels 1x2,8 tiles/bubbles.png
+            --panels 2x2,8 tiles/bubbles.png
     )
 
     mkdir -p build/code
