@@ -25,7 +25,22 @@ typedef enum bubble_e {
 #define BOARD_ROWS 11
 #define BOARD_COLS 8
 
-bubble_t game_board [BOARD_ROWS] [BOARD_COLS];
+/* Using a linear game-board, neighbouring bubbles can be checked with
+ * simple offsets. An border of unset bubbles is included in the array
+ * to avoid the need for bounds-checking.
+ *
+ *  -> 6 rows have 8 bubbles (8 rows of 10 bubbles considering the border)
+ *  -> 5 rows have 7 bubbles (9 rows of 9 bubbles considering the border)
+ *
+ *  8 * 10 + 9 * 9 = 161 positions in the array.
+ */
+bubble_t game_board [161];
+#define NEIGH_TOP_LEFT    -10
+#define NEIGH_TOP_RIGHT    -9
+#define NEIGH_LEFT         -1
+#define NEIGH_right         1
+#define NEIGH_BOTTOM_LEFT   9
+#define NEIGH_BOTTOM_RIGHT 10
 
 static uint32_t blue_tile [32] = { 0x00000000, 0x00000000, 0x00000000, 0x00000000,
                                    0x00000000, 0x00000000, 0x00000000, 0x00000000 };
@@ -60,7 +75,19 @@ void draw_cursor (void)
 #define BYTES_PER_ROW 56
 void set_bubble (uint8_t x, uint8_t y, bubble_t bubble)
 {
-    game_board [y] [x] = bubble;
+    uint8_t position = 10 + x + 19 * (y >> 1);
+    if (y & 1)
+    {
+        position += NEIGH_BOTTOM_RIGHT;
+    }
+
+    game_board [position] = bubble;
+
+    /* Neighbours */
+    bubble_t neigh_tl = game_board [position + NEIGH_TOP_LEFT];
+    bubble_t neigh_tr = game_board [position + NEIGH_TOP_RIGHT];
+    bubble_t neigh_bl = game_board [position + NEIGH_BOTTOM_LEFT];
+    bubble_t neigh_br = game_board [position + NEIGH_BOTTOM_RIGHT];
 
     /* VRAM coordinates */
     uint16_t left_strip;
@@ -77,10 +104,15 @@ void set_bubble (uint8_t x, uint8_t y, bubble_t bubble)
     }
     right_strip = left_strip + BYTES_PER_STRIP;
 
-    /* TODO: For now, neighbours are ignored, just draw the bubble
-     *       and accept some clobbered pixels. */
     if (bubble == BUBBLE_NONE)
     {
+        /* Left strip */
+        SMS_VRAMmemcpy (left_strip,      &bubbles_patterns [bubbles_panels [0 + neigh_tl] [0] << 3], 32);
+        SMS_VRAMmemcpy (left_strip + 32, &bubbles_patterns [bubbles_panels [0 + neigh_bl] [2] << 3], 32);
+
+        /* Right strip */
+        SMS_VRAMmemcpy (right_strip,      &bubbles_patterns [bubbles_panels [0 + neigh_tr] [1] << 3], 32);
+        SMS_VRAMmemcpy (right_strip + 32, &bubbles_patterns [bubbles_panels [0 + neigh_br] [3] << 3], 32);
     }
     else if (bubble == BUBBLE_CYAN)
     {
@@ -93,12 +125,12 @@ void set_bubble (uint8_t x, uint8_t y, bubble_t bubble)
          */
 
         /* Left strip */
-        SMS_VRAMmemcpy (left_strip,      &bubbles_patterns [bubbles_panels [0] [0] << 3], 32);
-        SMS_VRAMmemcpy (left_strip + 32, &bubbles_patterns [bubbles_panels [0] [2] << 3], 32);
+        SMS_VRAMmemcpy (left_strip,      &bubbles_patterns [bubbles_panels [2 + neigh_tl] [0] << 3], 32);
+        SMS_VRAMmemcpy (left_strip + 32, &bubbles_patterns [bubbles_panels [2 + neigh_bl] [2] << 3], 32);
 
         /* Right strip */
-        SMS_VRAMmemcpy (right_strip,      &bubbles_patterns [bubbles_panels [0] [1] << 3], 32);
-        SMS_VRAMmemcpy (right_strip + 32, &bubbles_patterns [bubbles_panels [0] [3] << 3], 32);
+        SMS_VRAMmemcpy (right_strip,      &bubbles_patterns [bubbles_panels [2 + neigh_tr] [1] << 3], 32);
+        SMS_VRAMmemcpy (right_strip + 32, &bubbles_patterns [bubbles_panels [2 + neigh_br] [3] << 3], 32);
     }
 }
 
@@ -206,6 +238,10 @@ void main (void)
         if (key_pressed & PORT_A_KEY_1)
         {
             set_bubble (cursor_x, cursor_y, BUBBLE_CYAN);
+        }
+        else if (key_pressed & PORT_A_KEY_2)
+        {
+            set_bubble (cursor_x, cursor_y, BUBBLE_NONE);
         }
 
         draw_cursor ();
