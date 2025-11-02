@@ -163,10 +163,13 @@ void main (void)
     SMS_loadTiles (cursor_patterns, 322, sizeof (cursor_patterns));
 
     /* Patterns 326-329: Bubble in launcher (sprite) */
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [0] << 3], 326, sizeof (cursor_patterns));
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [1] << 3], 327, sizeof (cursor_patterns));
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [2] << 3], 328, sizeof (cursor_patterns));
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [3] << 3], 329, sizeof (cursor_patterns));
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [0] << 3], 326, 32);
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [1] << 3], 327, 32);
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [2] << 3], 328, 32);
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [3] << 3], 329, 32);
+
+    /* Patterns 330-333: Grass */
+    SMS_loadTiles (grass_patterns, 330, sizeof (grass_patterns));
 
     /* Tile-map: Basic background and border around game board */
     for (uint8_t y = 0; y < 24; y++)
@@ -187,6 +190,13 @@ void main (void)
 
         }
         SMS_loadTileMapArea (0, y, row, 32, 1);
+    }
+
+    /* Tile-map: Grass */
+    for (uint8_t x = 0; x < 32; x += 2)
+    {
+        uint16_t grass_block [4] = { 330, 331, 332, 333 };
+        SMS_loadTileMapArea (x, 22, grass_block, 2, 2);
     }
 
     /* Tile-map: Game board strips

@@ -39,8 +39,9 @@ build_bubbles_for_master_system ()
         ${sneptile} --sprites --output-dir game_tile_data \
             --sprite-palette ${GAME_SPRITE_PALETTE} \
             --background-palette ${GAME_BACKGROUND_PALETTE} \
-            --panels 1x2,8 tiles/cursor.png \
-            --panels 2x2,25 tiles/bubbles.png
+            --panels 2x2,1 tiles/cursor.png \
+            --panels 2x2,25 tiles/bubbles.png \
+            --background tiles/grass.png
     )
 
     mkdir -p build/code
