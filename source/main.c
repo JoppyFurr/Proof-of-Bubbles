@@ -22,6 +22,8 @@ typedef enum bubble_e {
     BUBBLE_CYAN,
     BUBBLE_RED,
     BUBBLE_GREEN,
+    BUBBLE_YELLOW,
+    BUBBLE_MAX
 } bubble_t;
 
 #define BOARD_ROWS 11
@@ -61,12 +63,20 @@ void draw_cursor (void)
         cursor_x_px += 8;
     }
 
-    SMS_initSprites ();
     SMS_addSprite (cursor_x_px,     cursor_y_px,     (uint8_t) (322    ));
     SMS_addSprite (cursor_x_px + 8, cursor_y_px,     (uint8_t) (322 + 1));
     SMS_addSprite (cursor_x_px,     cursor_y_px + 8, (uint8_t) (322 + 2));
     SMS_addSprite (cursor_x_px + 8, cursor_y_px + 8, (uint8_t) (322 + 3));
-    SMS_copySpritestoSAT ();
+}
+
+void draw_active_bubble (void)
+{
+    uint8_t active_bubble_x = 120;
+    uint8_t active_bubble_y = 154;
+    SMS_addSprite (active_bubble_x,     active_bubble_y,     (uint8_t) (326    ));
+    SMS_addSprite (active_bubble_x + 8, active_bubble_y,     (uint8_t) (326 + 1));
+    SMS_addSprite (active_bubble_x,     active_bubble_y + 8, (uint8_t) (326 + 2));
+    SMS_addSprite (active_bubble_x + 8, active_bubble_y + 8, (uint8_t) (326 + 3));
 }
 
 
@@ -111,13 +121,18 @@ void set_bubble (uint8_t x, uint8_t y, bubble_t bubble)
      *  - Each column contains the specific neighbour {none, cyan, red, green}
      */
 
+    /* TODO - Can the below be improved a bit?
+     * Consider:
+     *  - Avoid the left-shift by having Sneptile provide uint32_t indices instead of pattern indices.
+     */
+
     /* Left strip */
-    SMS_VRAMmemcpy (left_strip,      &bubbles_patterns [bubbles_panels [bubble * 4 + neigh_tl] [0] << 3], 32);
-    SMS_VRAMmemcpy (left_strip + 32, &bubbles_patterns [bubbles_panels [bubble * 4 + neigh_bl] [2] << 3], 32);
+    SMS_VRAMmemcpy (left_strip,      &bubbles_patterns [bubbles_panels [bubble * BUBBLE_MAX + neigh_tl] [0] << 3], 32);
+    SMS_VRAMmemcpy (left_strip + 32, &bubbles_patterns [bubbles_panels [bubble * BUBBLE_MAX + neigh_bl] [2] << 3], 32);
 
     /* Right strip */
-    SMS_VRAMmemcpy (right_strip,      &bubbles_patterns [bubbles_panels [bubble * 4 + neigh_tr] [1] << 3], 32);
-    SMS_VRAMmemcpy (right_strip + 32, &bubbles_patterns [bubbles_panels [bubble * 4 + neigh_br] [3] << 3], 32);
+    SMS_VRAMmemcpy (right_strip,      &bubbles_patterns [bubbles_panels [bubble * BUBBLE_MAX + neigh_tr] [1] << 3], 32);
+    SMS_VRAMmemcpy (right_strip + 32, &bubbles_patterns [bubbles_panels [bubble * BUBBLE_MAX + neigh_br] [3] << 3], 32);
 }
 
 
@@ -146,6 +161,12 @@ void main (void)
 
     /* Patterns 322-325: Debug cursor */
     SMS_loadTiles (cursor_patterns, 322, sizeof (cursor_patterns));
+
+    /* Patterns 326-329: Bubble in launcher (sprite) */
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [0] << 3], 326, sizeof (cursor_patterns));
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [1] << 3], 327, sizeof (cursor_patterns));
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [2] << 3], 328, sizeof (cursor_patterns));
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [3] << 3], 329, sizeof (cursor_patterns));
 
     /* Tile-map: Basic background and border around game board */
     for (uint8_t y = 0; y < 24; y++)
@@ -225,9 +246,9 @@ void main (void)
         {
             /* Cycle through bubble colours */
             static uint8_t next_bubble = BUBBLE_CYAN;
-            set_bubble (cursor_x, cursor_y, next_bubble & 0x03);
+            set_bubble (cursor_x, cursor_y, next_bubble);
             next_bubble++;
-            if (next_bubble > BUBBLE_GREEN)
+            if (next_bubble >= BUBBLE_MAX)
             {
                 next_bubble = BUBBLE_CYAN;
             }
@@ -237,7 +258,11 @@ void main (void)
             set_bubble (cursor_x, cursor_y, BUBBLE_NONE);
         }
 
+        /* Sprites */
+        SMS_initSprites ();
         draw_cursor ();
+        draw_active_bubble ();
+        SMS_copySpritestoSAT ();
     }
 
 }
