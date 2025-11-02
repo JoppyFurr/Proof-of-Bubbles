@@ -137,6 +137,53 @@ void set_bubble (uint8_t x, uint8_t y, bubble_t bubble)
 
 
 /*
+ * Debug cursor handling,
+ * controlled by player-2 inputs.
+ */
+void debug_cursor (uint16_t key_pressed)
+{
+    if ((key_pressed & PORT_B_KEY_UP) && cursor_y > 0)
+    {
+        cursor_y -= 1;
+    }
+    else if ((key_pressed & PORT_B_KEY_DOWN) && cursor_y < 10)
+    {
+        cursor_y += 1;
+    }
+    else if ((key_pressed & PORT_B_KEY_LEFT) && cursor_x > 0)
+    {
+        cursor_x -= 1;
+    }
+    else if ((key_pressed & PORT_B_KEY_RIGHT) && cursor_x < 7)
+    {
+        cursor_x += 1;
+    }
+
+    /* Even rows hold 8 bubbles, odd rows hold 7 bubbles */
+    if (cursor_y & 0x01 && cursor_x > 6)
+    {
+        cursor_x = 6;
+    }
+
+    if (key_pressed & PORT_B_KEY_1)
+    {
+        /* Cycle through bubble colours */
+        static uint8_t next_bubble = BUBBLE_CYAN;
+        set_bubble (cursor_x, cursor_y, next_bubble);
+        next_bubble++;
+        if (next_bubble >= BUBBLE_MAX)
+        {
+            next_bubble = BUBBLE_CYAN;
+        }
+    }
+    else if (key_pressed & PORT_B_KEY_2)
+    {
+        set_bubble (cursor_x, cursor_y, BUBBLE_NONE);
+    }
+}
+
+
+/*
  * Entry point.
  */
 void main (void)
@@ -229,44 +276,7 @@ void main (void)
         uint16_t key_pressed = SMS_getKeysPressed ();
 
         /* Handle input */
-        if ((key_pressed & PORT_A_KEY_UP) && cursor_y > 0)
-        {
-            cursor_y -= 1;
-        }
-        else if ((key_pressed & PORT_A_KEY_DOWN) && cursor_y < 10)
-        {
-            cursor_y += 1;
-        }
-        else if ((key_pressed & PORT_A_KEY_LEFT) && cursor_x > 0)
-        {
-            cursor_x -= 1;
-        }
-        else if ((key_pressed & PORT_A_KEY_RIGHT) && cursor_x < 7)
-        {
-            cursor_x += 1;
-        }
-
-        /* Even rows hold 8 bubbles, odd rows hold 7 bubbles */
-        if (cursor_y & 0x01 && cursor_x > 6)
-        {
-            cursor_x = 6;
-        }
-
-        if (key_pressed & PORT_A_KEY_1)
-        {
-            /* Cycle through bubble colours */
-            static uint8_t next_bubble = BUBBLE_CYAN;
-            set_bubble (cursor_x, cursor_y, next_bubble);
-            next_bubble++;
-            if (next_bubble >= BUBBLE_MAX)
-            {
-                next_bubble = BUBBLE_CYAN;
-            }
-        }
-        else if (key_pressed & PORT_A_KEY_2)
-        {
-            set_bubble (cursor_x, cursor_y, BUBBLE_NONE);
-        }
+        debug_cursor (key_pressed);
 
         /* Sprites */
         SMS_initSprites ();
