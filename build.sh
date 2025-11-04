@@ -41,6 +41,7 @@ build_bubbles_for_master_system ()
             --background-palette ${GAME_BACKGROUND_PALETTE} \
             --panels 2x2,1 tiles/cursor.png \
             --panels 2x2,25 tiles/bubbles.png \
+            tiles/pip.png \
             --background tiles/grass.png
     )
 

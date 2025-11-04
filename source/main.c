@@ -17,6 +17,14 @@
 uint8_t cursor_x = 0;
 uint8_t cursor_y = 0;
 
+#define LAUNCHER_AIM_MIN      0
+#define LAUNCHER_AIM_CENTRE  60
+#define LAUNCHER_AIM_MAX    120
+
+uint8_t launcher_aim = LAUNCHER_AIM_CENTRE;
+uint8_t active_bubble_x = 120;
+uint8_t active_bubble_y = 154;
+
 typedef enum bubble_e {
     BUBBLE_NONE = 0,
     BUBBLE_CYAN,
@@ -25,6 +33,11 @@ typedef enum bubble_e {
     BUBBLE_YELLOW,
     BUBBLE_MAX
 } bubble_t;
+
+typedef enum game_state_e {
+    BUBBLE_READY = 0,
+    BUBBLE_MOVING
+} game_state_t;
 
 #define BOARD_ROWS 11
 #define BOARD_COLS 8
@@ -52,6 +65,9 @@ static uint32_t blue_tile [32] = { 0x00000000, 0x00000000, 0x00000000, 0x0000000
 static uint32_t black_tile [32] = { 0xff0000ff, 0x000000ff, 0x000000ff, 0x000000ff,
                                     0x000000ff, 0x000000ff, 0x000000ff, 0x000000ff };
 
+/*
+ * A debug cursor to set and unset bubbles in the game board.
+ */
 void draw_cursor (void)
 {
     uint8_t cursor_x_px = 72 + (cursor_x << 4);
@@ -69,14 +85,29 @@ void draw_cursor (void)
     SMS_addSprite (cursor_x_px + 8, cursor_y_px + 8, (uint8_t) (322 + 3));
 }
 
+
+/*
+ * Draw the active bubble, which is either sitting in the launcher,
+ * or moving through the game board.
+ */
 void draw_active_bubble (void)
 {
-    uint8_t active_bubble_x = 120;
-    uint8_t active_bubble_y = 154;
     SMS_addSprite (active_bubble_x,     active_bubble_y,     (uint8_t) (326    ));
     SMS_addSprite (active_bubble_x + 8, active_bubble_y,     (uint8_t) (326 + 1));
     SMS_addSprite (active_bubble_x,     active_bubble_y + 8, (uint8_t) (326 + 2));
     SMS_addSprite (active_bubble_x + 8, active_bubble_y + 8, (uint8_t) (326 + 3));
+}
+
+
+/*
+ * An initial indicator of aiming direction.
+ * TODO: Replace with an arrow.
+ */
+void draw_pip (void)
+{
+    uint8_t pip_x = 127 - 60 + launcher_aim;;
+    uint8_t pip_y = 131;
+    SMS_addSprite (pip_x, pip_y, (uint8_t) (334));
 }
 
 
@@ -218,6 +249,9 @@ void main (void)
     /* Patterns 330-333: Grass */
     SMS_loadTiles (grass_patterns, 330, sizeof (grass_patterns));
 
+    /* Pattern 334: Indicator pip */
+    SMS_loadTiles (pip_patterns, 334, sizeof (pip_patterns));
+
     /* Tile-map: Basic background and border around game board */
     for (uint8_t y = 0; y < 24; y++)
     {
@@ -270,18 +304,85 @@ void main (void)
 
     SMS_displayOn ();
 
+    game_state_t state = BUBBLE_READY;
+
     while (true)
     {
         SMS_waitForVBlank ();
         uint16_t key_pressed = SMS_getKeysPressed ();
+        uint16_t key_status = SMS_getKeysStatus ();
 
         /* Handle input */
         debug_cursor (key_pressed);
+
+        /* Aiming */
+        uint16_t key_horizontal = key_status & (PORT_A_KEY_LEFT | PORT_A_KEY_RIGHT);
+        uint16_t key_vertical = key_status & (PORT_A_KEY_UP | PORT_A_KEY_DOWN);
+        if (key_horizontal)
+        {
+            if (key_horizontal == PORT_A_KEY_LEFT && launcher_aim > LAUNCHER_AIM_MIN)
+            {
+                launcher_aim -= 1;
+            }
+            else if (key_horizontal == PORT_A_KEY_RIGHT && launcher_aim < LAUNCHER_AIM_MAX)
+            {
+                launcher_aim += 1;
+            }
+        }
+        else if (key_vertical)
+        {
+            if (key_vertical == PORT_A_KEY_UP)
+            {
+                if (launcher_aim < LAUNCHER_AIM_CENTRE)
+                {
+                    launcher_aim++;
+                }
+                else if (launcher_aim > LAUNCHER_AIM_CENTRE)
+                {
+                    launcher_aim--;
+                }
+            }
+            else if (key_vertical == PORT_A_KEY_DOWN)
+            {
+                if (launcher_aim > LAUNCHER_AIM_MIN && launcher_aim < LAUNCHER_AIM_CENTRE)
+                {
+                    launcher_aim--;
+                }
+                else if (launcher_aim > LAUNCHER_AIM_CENTRE && launcher_aim < LAUNCHER_AIM_MAX)
+                {
+                    launcher_aim++;
+                }
+            }
+        }
+
+        if (key_pressed & PORT_A_KEY_1)
+        {
+            if (state == BUBBLE_READY)
+            {
+                state = BUBBLE_MOVING;
+            }
+        }
+
+        /* Movement */
+        if (state == BUBBLE_MOVING)
+        {
+            active_bubble_y -= 5;
+
+            /* For now, just stop once we reach the end. */
+            if (active_bubble_y < 8)
+            {
+                /* Reset the coordinates for the next bubble */
+                active_bubble_x = 120;
+                active_bubble_y = 154;
+                state = BUBBLE_READY;
+            }
+        }
 
         /* Sprites */
         SMS_initSprites ();
         draw_cursor ();
         draw_active_bubble ();
+        draw_pip ();
         SMS_copySpritestoSAT ();
     }
 
