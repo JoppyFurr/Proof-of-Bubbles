@@ -8,6 +8,8 @@
 
 #include "SMSlib.h"
 
+#include "angles.h"
+
 #define TARGET_SMS
 #include "../game_tile_data/patterns.h"
 #include "../game_tile_data/pattern_index.h"
@@ -22,8 +24,10 @@ uint8_t cursor_y = 0;
 #define LAUNCHER_AIM_MAX    120
 
 uint8_t launcher_aim = LAUNCHER_AIM_CENTRE;
-uint8_t active_bubble_x = 120;
-uint8_t active_bubble_y = 154;
+uint16_t active_bubble_velocity_x = 0;
+uint16_t active_bubble_velocity_y = 0;
+uint16_t active_bubble_x = 120 * 0x100;
+uint16_t active_bubble_y = 154 * 0x100;
 
 typedef enum bubble_e {
     BUBBLE_NONE = 0,
@@ -92,10 +96,13 @@ void draw_cursor (void)
  */
 void draw_active_bubble (void)
 {
-    SMS_addSprite (active_bubble_x,     active_bubble_y,     (uint8_t) (326    ));
-    SMS_addSprite (active_bubble_x + 8, active_bubble_y,     (uint8_t) (326 + 1));
-    SMS_addSprite (active_bubble_x,     active_bubble_y + 8, (uint8_t) (326 + 2));
-    SMS_addSprite (active_bubble_x + 8, active_bubble_y + 8, (uint8_t) (326 + 3));
+    /* TODO: Union or pointer math to avoid the shifts */
+    uint8_t x = active_bubble_x >> 8;
+    uint8_t y = active_bubble_y >> 8;
+    SMS_addSprite (x,     y,     (uint8_t) (326    ));
+    SMS_addSprite (x + 8, y,     (uint8_t) (326 + 1));
+    SMS_addSprite (x,     y + 8, (uint8_t) (326 + 2));
+    SMS_addSprite (x + 8, y + 8, (uint8_t) (326 + 3));
 }
 
 
@@ -105,8 +112,8 @@ void draw_active_bubble (void)
  */
 void draw_pip (void)
 {
-    uint8_t pip_x = 127 - 60 + launcher_aim;;
-    uint8_t pip_y = 131;
+    uint8_t pip_x = 127 + (angle_data [launcher_aim].x >> 6);
+    uint8_t pip_y = 161 + (angle_data [launcher_aim].y >> 6);
     SMS_addSprite (pip_x, pip_y, (uint8_t) (334));
 }
 
@@ -359,6 +366,8 @@ void main (void)
         {
             if (state == BUBBLE_READY)
             {
+                active_bubble_velocity_x = angle_data [launcher_aim].x;
+                active_bubble_velocity_y = angle_data [launcher_aim].y;
                 state = BUBBLE_MOVING;
             }
         }
@@ -366,14 +375,15 @@ void main (void)
         /* Movement */
         if (state == BUBBLE_MOVING)
         {
-            active_bubble_y -= 5;
+            active_bubble_x += active_bubble_velocity_x;
+            active_bubble_y += active_bubble_velocity_y;
 
             /* For now, just stop once we reach the end. */
-            if (active_bubble_y < 8)
+            if (active_bubble_y < 8 * 0x100)
             {
                 /* Reset the coordinates for the next bubble */
-                active_bubble_x = 120;
-                active_bubble_y = 154;
+                active_bubble_x = 120 * 0x100;
+                active_bubble_y = 154 * 0x100;
                 state = BUBBLE_READY;
             }
         }
