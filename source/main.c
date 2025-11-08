@@ -16,8 +16,8 @@
 #include "../game_tile_data/palette.h"
 
 /* Global state */
-uint8_t cursor_x = 0;
-uint8_t cursor_y = 0;
+uint8_t cursor_x = 128;
+uint8_t cursor_y = 96;
 
 #define LAUNCHER_AIM_MIN      0
 #define LAUNCHER_AIM_CENTRE  60
@@ -69,6 +69,27 @@ bubble_t game_board [161];
 #define NEIGH_BOTTOM_LEFT   9
 #define NEIGH_BOTTOM_RIGHT 10
 
+/* Using a simple division by 14 to get the row, and division by 16 (after accounting
+ * for stagger) to get the column gets a close estimate of a pixel's game-board position.
+ * However, the bubbles aren't rectangular,  so the pixel coordinate within the rectangle
+ * index the pixel-to-board array to reach the correct the game-board position */
+static const int8_t pixel_to_board [14] [16] = {
+    { -10, -10, -10,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -9,  -9,  -9 },
+    { -10,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -9 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {  +9,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, +10 },
+    {  +9,  +9,  +9,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, +10, +10, +10 }
+};
+
 static const uint32_t blue_tile [32] = { 0x00000000, 0x00000000, 0x00000000, 0x00000000,
                                          0x00000000, 0x00000000, 0x00000000, 0x00000000 };
 
@@ -80,19 +101,10 @@ static const uint32_t black_tile [32] = { 0xff0000ff, 0x000000ff, 0x000000ff, 0x
  */
 void draw_cursor (void)
 {
-    uint8_t cursor_x_px = 72 + (cursor_x << 4);
-    uint8_t cursor_y_px = 16 + (14 * cursor_y);
-
-    /* Staggering */
-    if (cursor_y & 0x01)
-    {
-        cursor_x_px += 8;
-    }
-
-    SMS_addSprite (cursor_x_px,     cursor_y_px,     (uint8_t) (322    ));
-    SMS_addSprite (cursor_x_px + 8, cursor_y_px,     (uint8_t) (322 + 1));
-    SMS_addSprite (cursor_x_px,     cursor_y_px + 8, (uint8_t) (322 + 2));
-    SMS_addSprite (cursor_x_px + 8, cursor_y_px + 8, (uint8_t) (322 + 3));
+    SMS_addSprite (cursor_x,     cursor_y,     (uint8_t) (322    ));
+    SMS_addSprite (cursor_x + 8, cursor_y,     (uint8_t) (322 + 1));
+    SMS_addSprite (cursor_x,     cursor_y + 8, (uint8_t) (322 + 2));
+    SMS_addSprite (cursor_x + 8, cursor_y + 8, (uint8_t) (322 + 3));
 }
 
 
@@ -129,14 +141,8 @@ void draw_pip (void)
  */
 #define BYTES_PER_STRIP 640
 #define BYTES_PER_ROW 56
-void set_bubble (uint8_t x, uint8_t y, bubble_t bubble)
+void set_bubble (uint8_t position, bubble_t bubble)
 {
-    uint8_t position = 10 + x + 19 * (y >> 1);
-    if (y & 1)
-    {
-        position += NEIGH_BOTTOM_RIGHT;
-    }
-
     game_board [position] = bubble;
 
     /* Neighbours */
@@ -149,14 +155,19 @@ void set_bubble (uint8_t x, uint8_t y, bubble_t bubble)
     uint16_t left_strip;
     uint16_t right_strip;
 
+    uint8_t col = (position - 10) % 19;
+    uint8_t row = (position - 10) / 19 * 2;
+
     /* Odd rows are offset by one strip */
-    if (y & 1)
+    if (col > 8)
     {
-        left_strip = ((x << 1) + 1) * BYTES_PER_STRIP + y * BYTES_PER_ROW;
+        col -= NEIGH_BOTTOM_RIGHT;
+        row += 1;
+        left_strip = ((col << 1) + 1) * BYTES_PER_STRIP + row * BYTES_PER_ROW;
     }
     else
     {
-        left_strip = (x << 1) * BYTES_PER_STRIP + y * BYTES_PER_ROW;
+        left_strip = (col << 1) * BYTES_PER_STRIP + row * BYTES_PER_ROW;
     }
     right_strip = left_strip + BYTES_PER_STRIP;
 
@@ -184,36 +195,87 @@ void set_bubble (uint8_t x, uint8_t y, bubble_t bubble)
  * Debug cursor handling,
  * controlled by player-2 inputs.
  */
-void debug_cursor (uint16_t key_pressed)
+void debug_cursor (uint16_t key_pressed, uint16_t key_status)
 {
-    if ((key_pressed & PORT_B_KEY_UP) && cursor_y > 0)
+    /* Slow movement while holding button-2 */
+    if (key_status & PORT_B_KEY_2)
+    {
+        key_status = key_pressed;
+    }
+
+    if ((key_status & PORT_B_KEY_UP) && cursor_y > 9)
     {
         cursor_y -= 1;
     }
-    else if ((key_pressed & PORT_B_KEY_DOWN) && cursor_y < 10)
+    else if ((key_status & PORT_B_KEY_DOWN) && cursor_y < 162)
     {
         cursor_y += 1;
     }
-    else if ((key_pressed & PORT_B_KEY_LEFT) && cursor_x > 0)
+
+    if ((key_status & PORT_B_KEY_LEFT) && cursor_x > 64)
     {
         cursor_x -= 1;
     }
-    else if ((key_pressed & PORT_B_KEY_RIGHT) && cursor_x < 7)
+    else if ((key_status & PORT_B_KEY_RIGHT) && cursor_x < 191)
     {
         cursor_x += 1;
     }
 
-    /* Even rows hold 8 bubbles, odd rows hold 7 bubbles */
-    if (cursor_y & 0x01 && cursor_x > 6)
+    /* Conversion of pixel coordinates into game-board position:
+     *
+     * There is a repeating pattern, every two rows of bubbles.
+     * This pattern is made up of 28 pixel lines, and represents an increment
+     * of +19 game board positions.
+     *
+     * the beginning of the game board (y = 9), then it has the following property:
+     * Beginning one line into the game board area (y = 9), imagining that the game board is made of rectangles.
+     * Staggered like bricks, rather than a hex-grid for circles:
+     *
+     *   - Dividing the Y coordinate by 14 will give the row.
+     *   - Dividing the X position by 16 (offset by 8 every other row) will give the column
+     *
+     * Looking at the pixel position within the rectangles, an array of offsets can be used
+     * to adjust the coordinate into the correct hex-grid game-board position:
+     *
+     *  - Two lines where the nearest bubble may be on the row above
+     *  - Ten lines where the division by 14 was already correct
+     *  - Two lines where the nearest bubble may be on the row below.
+     */
+
+    uint8_t repetition = (cursor_y - 9) / 28;
+    uint8_t pos_y =      (cursor_y - 9) % 28;
+    uint8_t pos_x =      (cursor_x - 64);
+
+    uint8_t target_bubble = 10 + 19 * repetition;
+
+    /* 8-bubble row */
+    if (pos_y < 14)
     {
-        cursor_x = 6;
+        target_bubble += pos_x >> 4;
+        target_bubble += pixel_to_board [pos_y] [pos_x & 0x0f];
+
+    }
+    /* 7-bubble row */
+    else
+    {
+        target_bubble += NEIGH_BOTTOM_LEFT;
+        target_bubble += (pos_x + 8) >> 4;
+        target_bubble += pixel_to_board [pos_y - 14] [(pos_x + 8) & 0x0f];
+    }
+
+    /* Don't draw to an invalid position */
+    if (target_bubble < 10 || target_bubble > 112 ||
+        (target_bubble - 10) % 19 == 9 ||
+        (target_bubble - 10) % 19 == 17)
+    {
+        return;
     }
 
     if (key_pressed & PORT_B_KEY_1)
     {
         /* Cycle through bubble colours */
         static uint8_t next_bubble = BUBBLE_CYAN;
-        set_bubble (cursor_x, cursor_y, next_bubble);
+        set_bubble (target_bubble, next_bubble);
         next_bubble++;
         if (next_bubble >= BUBBLE_MAX)
         {
@@ -222,7 +284,7 @@ void debug_cursor (uint16_t key_pressed)
     }
     else if (key_pressed & PORT_B_KEY_2)
     {
-        set_bubble (cursor_x, cursor_y, BUBBLE_NONE);
+        set_bubble (target_bubble, BUBBLE_NONE);
     }
 }
 
@@ -326,7 +388,7 @@ void main (void)
         uint16_t key_status = SMS_getKeysStatus ();
 
         /* Handle input */
-        debug_cursor (key_pressed);
+        debug_cursor (key_pressed, key_status);
 
         /* Aiming */
         uint16_t key_horizontal = key_status & (PORT_A_KEY_LEFT | PORT_A_KEY_RIGHT);
