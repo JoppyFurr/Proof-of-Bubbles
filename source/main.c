@@ -23,11 +23,17 @@ uint8_t cursor_y = 0;
 #define LAUNCHER_AIM_CENTRE  60
 #define LAUNCHER_AIM_MAX    120
 
+/* Coordinates in 8.8 fixed-point format */
+#define LEFT_EDGE        0x4000
+#define RIGHT_EDGE       0xb000
+#define LAUNCH_FROM_X    0x7800
+#define LAUNCH_FROM_Y    0x9a00
+
 uint8_t launcher_aim = LAUNCHER_AIM_CENTRE;
 uint16_t active_bubble_velocity_x = 0;
 uint16_t active_bubble_velocity_y = 0;
-uint16_t active_bubble_x = 120 * 0x100;
-uint16_t active_bubble_y = 154 * 0x100;
+uint16_t active_bubble_x = LAUNCH_FROM_X;
+uint16_t active_bubble_y = LAUNCH_FROM_Y;
 
 typedef enum bubble_e {
     BUBBLE_NONE = 0,
@@ -63,11 +69,11 @@ bubble_t game_board [161];
 #define NEIGH_BOTTOM_LEFT   9
 #define NEIGH_BOTTOM_RIGHT 10
 
-static uint32_t blue_tile [32] = { 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-                                   0x00000000, 0x00000000, 0x00000000, 0x00000000 };
+static const uint32_t blue_tile [32] = { 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+                                         0x00000000, 0x00000000, 0x00000000, 0x00000000 };
 
-static uint32_t black_tile [32] = { 0xff0000ff, 0x000000ff, 0x000000ff, 0x000000ff,
-                                    0x000000ff, 0x000000ff, 0x000000ff, 0x000000ff };
+static const uint32_t black_tile [32] = { 0xff0000ff, 0x000000ff, 0x000000ff, 0x000000ff,
+                                          0x000000ff, 0x000000ff, 0x000000ff, 0x000000ff };
 
 /*
  * A debug cursor to set and unset bubbles in the game board.
@@ -378,12 +384,28 @@ void main (void)
             active_bubble_x += active_bubble_velocity_x;
             active_bubble_y += active_bubble_velocity_y;
 
+            /* Bounce off the walls.
+             * Note, math is simplified and uses modulo 16-bit*/
+            /* TODO: Tune the subpixel value to give the half-pixel at the edge like the PS1 version has */
+            if (active_bubble_x < LEFT_EDGE)
+            {
+                active_bubble_x = 0x8000 - active_bubble_x;
+                active_bubble_velocity_x = -active_bubble_velocity_x;
+            }
+            else if (active_bubble_x > RIGHT_EDGE)
+            {
+                active_bubble_x = 0x6000 - active_bubble_x;
+                active_bubble_velocity_x = -active_bubble_velocity_x;
+            }
+
+
+
             /* For now, just stop once we reach the end. */
             if (active_bubble_y < 8 * 0x100)
             {
                 /* Reset the coordinates for the next bubble */
-                active_bubble_x = 120 * 0x100;
-                active_bubble_y = 154 * 0x100;
+                active_bubble_x = LAUNCH_FROM_X;
+                active_bubble_y = LAUNCH_FROM_Y;
                 state = BUBBLE_READY;
             }
         }
