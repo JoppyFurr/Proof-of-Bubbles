@@ -65,7 +65,7 @@ bubble_t game_board [161];
 #define NEIGH_TOP_LEFT    -10
 #define NEIGH_TOP_RIGHT    -9
 #define NEIGH_LEFT         -1
-#define NEIGH_right         1
+#define NEIGH_RIGHT         1
 #define NEIGH_BOTTOM_LEFT   9
 #define NEIGH_BOTTOM_RIGHT 10
 
@@ -90,6 +90,33 @@ static const int8_t pixel_to_board [14] [16] = {
     {  +9,  +9,  +9,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, +10, +10, +10 }
 };
 
+/* Using the same 16x14 staggered-rectangle grid as above, a bitmap is defined for which
+ * bubble-positions are collided with. The coordinates used to index this table is that
+ * of the pixel at (7, 7) within the 16 x 16 pixel bubble sprite. */
+#define COLLISION_TOP_LEFT      0x01
+#define COLLISION_TOP_RIGHT     0x02
+#define COLLISION_LEFT          0x04
+#define COLLISION_RIGHT         0x08
+#define COLLISION_BOTTOM_LEFT   0x10
+#define COLLISION_BOTTOM_RIGHT  0x20
+static const uint8_t pixel_to_collision [14] [16] = {
+    { 0x05, 0x05, 0x07, 0x07, 0x07, 0x07, 0x03, 0x03,  0x03, 0x0b, 0x0b, 0x0b, 0x0b, 0x0a, 0x0a, 0x0a },
+    { 0x05, 0x05, 0x07, 0x07, 0x07, 0x07, 0x07, 0x03,  0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0a, 0x0a, 0x0a },
+    { 0x05, 0x05, 0x05, 0x07, 0x07, 0x07, 0x07, 0x03,  0x0b, 0x0b, 0x0b, 0x0b, 0x0a, 0x0a, 0x0a, 0x0a },
+    { 0x05, 0x05, 0x05, 0x05, 0x07, 0x07, 0x07, 0x03,  0x0b, 0x0b, 0x0b, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a },
+    { 0x05, 0x05, 0x05, 0x05, 0x05, 0x07, 0x07, 0x03,  0x0b, 0x0b, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a },
+    { 0x15, 0x15, 0x15, 0x15, 0x15, 0x05, 0x07, 0x03,  0x0b, 0x0a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a },
+    { 0x15, 0x15, 0x15, 0x15, 0x15, 0x15, 0x15, 0x00,  0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a },
+    { 0x15, 0x15, 0x15, 0x15, 0x15, 0x14, 0x34, 0x30,  0x38, 0x28, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a },
+    { 0x14, 0x14, 0x14, 0x14, 0x14, 0x34, 0x34, 0x30,  0x38, 0x38, 0x28, 0x28, 0x28, 0x28, 0x28, 0x28 },
+    { 0x14, 0x14, 0x14, 0x14, 0x34, 0x34, 0x34, 0x30,  0x38, 0x38, 0x38, 0x28, 0x28, 0x28, 0x28, 0x28 },
+    { 0x14, 0x14, 0x14, 0x34, 0x34, 0x34, 0x34, 0x30,  0x38, 0x38, 0x38, 0x38, 0x28, 0x28, 0x28, 0x28 },
+    { 0x14, 0x14, 0x34, 0x34, 0x34, 0x34, 0x34, 0x30,  0x38, 0x38, 0x38, 0x38, 0x38, 0x28, 0x28, 0x28 },
+    { 0x14, 0x14, 0x34, 0x34, 0x34, 0x34, 0x30, 0x30,  0x30, 0x38, 0x38, 0x38, 0x38, 0x28, 0x28, 0x28 },
+    { 0x14, 0x34, 0x34, 0x34, 0x34, 0x34, 0x30, 0x30,  0x30, 0x38, 0x38, 0x38, 0x38, 0x38, 0x28, 0x28 }
+};
+
+
 static const uint32_t blue_tile [32] = { 0x00000000, 0x00000000, 0x00000000, 0x00000000,
                                          0x00000000, 0x00000000, 0x00000000, 0x00000000 };
 
@@ -101,10 +128,18 @@ static const uint32_t black_tile [32] = { 0xff0000ff, 0x000000ff, 0x000000ff, 0x
  */
 void draw_cursor (void)
 {
+#if 0
     SMS_addSprite (cursor_x,     cursor_y,     (uint8_t) (322    ));
     SMS_addSprite (cursor_x + 8, cursor_y,     (uint8_t) (322 + 1));
     SMS_addSprite (cursor_x,     cursor_y + 8, (uint8_t) (322 + 2));
     SMS_addSprite (cursor_x + 8, cursor_y + 8, (uint8_t) (322 + 3));
+#else
+    /* For collision testing, replace the cursor with a copy of the active bubble. */
+    SMS_addSprite (cursor_x,     cursor_y,     (uint8_t) (326    ));
+    SMS_addSprite (cursor_x + 8, cursor_y,     (uint8_t) (326 + 1));
+    SMS_addSprite (cursor_x,     cursor_y + 8, (uint8_t) (326 + 2));
+    SMS_addSprite (cursor_x + 8, cursor_y + 8, (uint8_t) (326 + 3));
+#endif
 }
 
 
@@ -242,16 +277,30 @@ void debug_cursor (uint16_t key_pressed, uint16_t key_status)
      *  - Two lines where the nearest bubble may be on the row below.
      */
 
-    uint8_t repetition = (cursor_y - 9) / 28;
-    uint8_t pos_y =      (cursor_y - 9) % 28;
-    uint8_t pos_x =      (cursor_x - 64);
+    /* Account for bubble-cursor. Coordinates are the top-left of the bubble,
+     * but mapping the bubble to a spot should use the centre of the bubble.
+     * We have to pick a middle, as there are four centre-most pixels.
+     * For now, the top-left of the centre pixels in the bubble sprite (7,7)
+     * is used and is what the data encodes. However, maybe (8,8) should be
+     * considered if that gives the "default-rolls-right" behaviour of the
+     * PS1 game. */
+    uint8_t cursor_x_centre = cursor_x + 7;
+    uint8_t cursor_y_centre = cursor_y + 7;
+
+    uint8_t repetition = (cursor_y_centre - 9) / 28;
+    uint8_t pos_y =      (cursor_y_centre - 9) % 28;
+    uint8_t pos_x =      (cursor_x_centre - 64);
 
     uint8_t target_bubble = 10 + 19 * repetition;
+    uint8_t collision_centre = 0;
+    uint8_t collisions = 0;
 
     /* 8-bubble row */
     if (pos_y < 14)
     {
         target_bubble += pos_x >> 4;
+        collision_centre = target_bubble;
+        collisions = pixel_to_collision [pos_y] [pos_x & 0x0f];
         target_bubble += pixel_to_board [pos_y] [pos_x & 0x0f];
 
     }
@@ -260,6 +309,8 @@ void debug_cursor (uint16_t key_pressed, uint16_t key_status)
     {
         target_bubble += NEIGH_BOTTOM_LEFT;
         target_bubble += (pos_x + 8) >> 4;
+        collision_centre = target_bubble;
+        collisions = pixel_to_collision [pos_y - 14] [(pos_x + 8) & 0x0f];
         target_bubble += pixel_to_board [pos_y - 14] [(pos_x + 8) & 0x0f];
     }
 
@@ -273,6 +324,7 @@ void debug_cursor (uint16_t key_pressed, uint16_t key_status)
 
     if (key_pressed & PORT_B_KEY_1)
     {
+#if 0
         /* Cycle through bubble colours */
         static uint8_t next_bubble = BUBBLE_CYAN;
         set_bubble (target_bubble, next_bubble);
@@ -281,6 +333,25 @@ void debug_cursor (uint16_t key_pressed, uint16_t key_status)
         {
             next_bubble = BUBBLE_CYAN;
         }
+#else
+        /* To test collision detection:
+         *   - The cursor is cyan
+         *   - Draw collided neighbours red
+         *   - Draw non-collided neighbours green */
+        set_bubble (collision_centre, BUBBLE_RED);
+        set_bubble (collision_centre + NEIGH_TOP_LEFT,
+                    (collisions & COLLISION_TOP_LEFT) ? BUBBLE_RED : BUBBLE_GREEN);
+        set_bubble (collision_centre + NEIGH_TOP_RIGHT,
+                    (collisions & COLLISION_TOP_RIGHT) ? BUBBLE_RED : BUBBLE_GREEN);
+        set_bubble (collision_centre + NEIGH_LEFT,
+                    (collisions & COLLISION_LEFT) ? BUBBLE_RED : BUBBLE_GREEN);
+        set_bubble (collision_centre + NEIGH_RIGHT,
+                    (collisions & COLLISION_RIGHT) ? BUBBLE_RED : BUBBLE_GREEN);
+        set_bubble (collision_centre + NEIGH_BOTTOM_LEFT,
+                    (collisions & COLLISION_BOTTOM_LEFT) ? BUBBLE_RED : BUBBLE_GREEN);
+        set_bubble (collision_centre + NEIGH_BOTTOM_RIGHT,
+                    (collisions & COLLISION_BOTTOM_RIGHT) ? BUBBLE_RED : BUBBLE_GREEN);
+#endif
     }
     else if (key_pressed & PORT_B_KEY_2)
     {
