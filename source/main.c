@@ -1,6 +1,19 @@
 /*
  * Bubbles for Master System
  * A Bust-A-Move clone for the Sega Master System
+ *
+ * TODOs:
+ *  - Seed rand from R, generate random bubbles.
+ *  - Save & restore rand seed.
+ *  - Draw the launcher arrow
+ *  - Un-crossable line at the bottom of the game-board
+ *  - Wash of gray upon crossing the line
+ *  - Pop groups of matching bubbles
+ *  - Falling animation for dropped bubbles
+ *  - Timer & high-score table
+ *  - Colourblind mode
+ *  - Shaking & dropping
+ *  - Music
  */
 #include <stdbool.h>
 #include <stdint.h>
@@ -28,12 +41,6 @@ uint8_t cursor_y = 96;
 #define LAUNCH_FROM_X    0x7800
 #define LAUNCH_FROM_Y    0x9a00
 
-uint8_t launcher_aim = LAUNCHER_AIM_CENTRE;
-uint16_t active_bubble_velocity_x = 0;
-uint16_t active_bubble_velocity_y = 0;
-uint16_t active_bubble_x = LAUNCH_FROM_X;
-uint16_t active_bubble_y = LAUNCH_FROM_Y;
-
 typedef enum bubble_e {
     BUBBLE_NONE = 0,
     BUBBLE_CYAN,
@@ -42,6 +49,14 @@ typedef enum bubble_e {
     BUBBLE_YELLOW,
     BUBBLE_MAX
 } bubble_t;
+
+uint8_t launcher_aim = LAUNCHER_AIM_CENTRE;
+bubble_t active_bubble = BUBBLE_CYAN;
+uint16_t active_bubble_velocity_x = 0;
+uint16_t active_bubble_velocity_y = 0;
+uint16_t active_bubble_x = LAUNCH_FROM_X;
+uint16_t active_bubble_y = LAUNCH_FROM_Y;
+
 
 typedef enum game_state_e {
     BUBBLE_READY = 0,
@@ -327,7 +342,7 @@ void active_bubble_set (void)
         bubble_tile += pixel_to_board [pos_y - 14] [(pos_x + 8) & 0x0f];
     }
 
-    set_bubble (bubble_tile, BUBBLE_CYAN);
+    set_bubble (bubble_tile, active_bubble);
 }
 
 
@@ -497,6 +512,17 @@ void main (void)
                 /* Reset the coordinates for the next bubble */
                 active_bubble_x = LAUNCH_FROM_X;
                 active_bubble_y = LAUNCH_FROM_Y;
+                active_bubble += 1;
+                if (active_bubble >= BUBBLE_MAX)
+                {
+                    active_bubble = BUBBLE_CYAN;
+                }
+
+                SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [0] << 3], 326, 32);
+                SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [1] << 3], 327, 32);
+                SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [2] << 3], 328, 32);
+                SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [3] << 3], 329, 32);
+
                 state = BUBBLE_READY;
             }
             else
