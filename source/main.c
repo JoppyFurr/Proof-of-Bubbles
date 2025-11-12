@@ -4,7 +4,6 @@
  */
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
 
 #include "SMSlib.h"
 
@@ -123,25 +122,6 @@ static const uint32_t blue_tile [32] = { 0x00000000, 0x00000000, 0x00000000, 0x0
 static const uint32_t black_tile [32] = { 0xff0000ff, 0x000000ff, 0x000000ff, 0x000000ff,
                                           0x000000ff, 0x000000ff, 0x000000ff, 0x000000ff };
 
-/*
- * A debug cursor to set and unset bubbles in the game board.
- */
-void draw_cursor (void)
-{
-#if 0
-    SMS_addSprite (cursor_x,     cursor_y,     (uint8_t) (322    ));
-    SMS_addSprite (cursor_x + 8, cursor_y,     (uint8_t) (322 + 1));
-    SMS_addSprite (cursor_x,     cursor_y + 8, (uint8_t) (322 + 2));
-    SMS_addSprite (cursor_x + 8, cursor_y + 8, (uint8_t) (322 + 3));
-#else
-    /* For collision testing, replace the cursor with a copy of the active bubble. */
-    SMS_addSprite (cursor_x,     cursor_y,     (uint8_t) (326    ));
-    SMS_addSprite (cursor_x + 8, cursor_y,     (uint8_t) (326 + 1));
-    SMS_addSprite (cursor_x,     cursor_y + 8, (uint8_t) (326 + 2));
-    SMS_addSprite (cursor_x + 8, cursor_y + 8, (uint8_t) (326 + 3));
-#endif
-}
-
 
 /*
  * Draw the active bubble, which is either sitting in the launcher,
@@ -227,136 +207,127 @@ void set_bubble (uint8_t position, bubble_t bubble)
 
 
 /*
- * Debug cursor handling,
- * controlled by player-2 inputs.
+ * Check if the active bubble is currently colliding with
+ * one of the bubbles on the game-board.
  */
-void debug_cursor (uint16_t key_pressed, uint16_t key_status)
+bool active_bubble_collision (void)
 {
-    /* Slow movement while holding button-2 */
-    if (key_status & PORT_B_KEY_2)
+    /* Early check to make the ceiling sticky */
+    if ((active_bubble_y >> 8) <= 8)
     {
-        key_status = key_pressed;
+        return true;
     }
 
-    if ((key_status & PORT_B_KEY_UP) && cursor_y > 9)
+    /* Get the bubble-centre coordinate within a two-row block */
+    uint8_t pos_x =      ((active_bubble_x >> 8) + 7 - 64);
+    uint8_t pos_y =      ((active_bubble_y >> 8) + 7 - 9) % 28;
+
+    /* Get which two-row block the bubble is in */
+    uint8_t repetition = ((active_bubble_y >> 8) + 7 - 9) / 28;
+
+    /* Convert the position into a 16x14 staggered-rectangle position on the game-board */
+    uint8_t collision_tile = 10 + 19 * repetition;
+    uint8_t collision_map;
+    if (pos_y < 14) /* 8-bubble row */
     {
-        cursor_y -= 1;
-    }
-    else if ((key_status & PORT_B_KEY_DOWN) && cursor_y < 162)
-    {
-        cursor_y += 1;
-    }
-
-    if ((key_status & PORT_B_KEY_LEFT) && cursor_x > 64)
-    {
-        cursor_x -= 1;
-    }
-    else if ((key_status & PORT_B_KEY_RIGHT) && cursor_x < 191)
-    {
-        cursor_x += 1;
-    }
-
-    /* Conversion of pixel coordinates into game-board position:
-     *
-     * There is a repeating pattern, every two rows of bubbles.
-     * This pattern is made up of 28 pixel lines, and represents an increment
-     * of +19 game board positions.
-     *
-     * the beginning of the game board (y = 9), then it has the following property:
-     * Beginning one line into the game board area (y = 9), imagining that the game board is made of rectangles.
-     * Staggered like bricks, rather than a hex-grid for circles:
-     *
-     *   - Dividing the Y coordinate by 14 will give the row.
-     *   - Dividing the X position by 16 (offset by 8 every other row) will give the column
-     *
-     * Looking at the pixel position within the rectangles, an array of offsets can be used
-     * to adjust the coordinate into the correct hex-grid game-board position:
-     *
-     *  - Two lines where the nearest bubble may be on the row above
-     *  - Ten lines where the division by 14 was already correct
-     *  - Two lines where the nearest bubble may be on the row below.
-     */
-
-    /* Account for bubble-cursor. Coordinates are the top-left of the bubble,
-     * but mapping the bubble to a spot should use the centre of the bubble.
-     * We have to pick a middle, as there are four centre-most pixels.
-     * For now, the top-left of the centre pixels in the bubble sprite (7,7)
-     * is used and is what the data encodes. However, maybe (8,8) should be
-     * considered if that gives the "default-rolls-right" behaviour of the
-     * PS1 game. */
-    uint8_t cursor_x_centre = cursor_x + 7;
-    uint8_t cursor_y_centre = cursor_y + 7;
-
-    uint8_t repetition = (cursor_y_centre - 9) / 28;
-    uint8_t pos_y =      (cursor_y_centre - 9) % 28;
-    uint8_t pos_x =      (cursor_x_centre - 64);
-
-    uint8_t target_bubble = 10 + 19 * repetition;
-    uint8_t collision_centre = 0;
-    uint8_t collisions = 0;
-
-    /* 8-bubble row */
-    if (pos_y < 14)
-    {
-        target_bubble += pos_x >> 4;
-        collision_centre = target_bubble;
-        collisions = pixel_to_collision [pos_y] [pos_x & 0x0f];
-        target_bubble += pixel_to_board [pos_y] [pos_x & 0x0f];
+        collision_tile += pos_x >> 4;
+        collision_map = pixel_to_collision [pos_y] [pos_x & 0x0f];
 
     }
-    /* 7-bubble row */
-    else
+    else /* 7-bubble row */
     {
-        target_bubble += NEIGH_BOTTOM_LEFT;
-        target_bubble += (pos_x + 8) >> 4;
-        collision_centre = target_bubble;
-        collisions = pixel_to_collision [pos_y - 14] [(pos_x + 8) & 0x0f];
-        target_bubble += pixel_to_board [pos_y - 14] [(pos_x + 8) & 0x0f];
+        collision_tile += NEIGH_BOTTOM_LEFT;
+        collision_tile += (pos_x + 8) >> 4;
+        collision_map = pixel_to_collision [pos_y - 14] [(pos_x + 8) & 0x0f];
     }
 
-    /* Don't draw to an invalid position */
-    if (target_bubble < 10 || target_bubble > 112 ||
-        (target_bubble - 10) % 19 == 9 ||
-        (target_bubble - 10) % 19 == 17)
-    {
-        return;
-    }
+    /* Note: For now the centre is skipped, assuming a centre collision
+     *       would have been detected earlier in the bubble's journey. */
 
-    if (key_pressed & PORT_B_KEY_1)
+    if (collision_map & COLLISION_TOP_LEFT)
     {
-#if 0
-        /* Cycle through bubble colours */
-        static uint8_t next_bubble = BUBBLE_CYAN;
-        set_bubble (target_bubble, next_bubble);
-        next_bubble++;
-        if (next_bubble >= BUBBLE_MAX)
+        if (game_board [collision_tile + NEIGH_TOP_LEFT] != BUBBLE_NONE)
         {
-            next_bubble = BUBBLE_CYAN;
+            return true;
         }
-#else
-        /* To test collision detection:
-         *   - The cursor is cyan
-         *   - Draw collided neighbours red
-         *   - Draw non-collided neighbours green */
-        set_bubble (collision_centre, BUBBLE_RED);
-        set_bubble (collision_centre + NEIGH_TOP_LEFT,
-                    (collisions & COLLISION_TOP_LEFT) ? BUBBLE_RED : BUBBLE_GREEN);
-        set_bubble (collision_centre + NEIGH_TOP_RIGHT,
-                    (collisions & COLLISION_TOP_RIGHT) ? BUBBLE_RED : BUBBLE_GREEN);
-        set_bubble (collision_centre + NEIGH_LEFT,
-                    (collisions & COLLISION_LEFT) ? BUBBLE_RED : BUBBLE_GREEN);
-        set_bubble (collision_centre + NEIGH_RIGHT,
-                    (collisions & COLLISION_RIGHT) ? BUBBLE_RED : BUBBLE_GREEN);
-        set_bubble (collision_centre + NEIGH_BOTTOM_LEFT,
-                    (collisions & COLLISION_BOTTOM_LEFT) ? BUBBLE_RED : BUBBLE_GREEN);
-        set_bubble (collision_centre + NEIGH_BOTTOM_RIGHT,
-                    (collisions & COLLISION_BOTTOM_RIGHT) ? BUBBLE_RED : BUBBLE_GREEN);
-#endif
     }
-    else if (key_pressed & PORT_B_KEY_2)
+    if (collision_map & COLLISION_TOP_RIGHT)
     {
-        set_bubble (target_bubble, BUBBLE_NONE);
+        if (game_board [collision_tile + NEIGH_TOP_RIGHT] != BUBBLE_NONE)
+        {
+            return true;
+        }
     }
+    if (collision_map & COLLISION_LEFT)
+    {
+        if (game_board [collision_tile + NEIGH_LEFT] != BUBBLE_NONE)
+        {
+            return true;
+        }
+    }
+    if (collision_map & COLLISION_RIGHT)
+    {
+        if (game_board [collision_tile + NEIGH_RIGHT] != BUBBLE_NONE)
+        {
+            return true;
+        }
+    }
+    if (collision_map & COLLISION_BOTTOM_LEFT)
+    {
+        if (game_board [collision_tile + NEIGH_BOTTOM_LEFT] != BUBBLE_NONE)
+        {
+            return true;
+        }
+    }
+    if (collision_map & COLLISION_BOTTOM_RIGHT)
+    {
+        if (game_board [collision_tile + NEIGH_BOTTOM_RIGHT] != BUBBLE_NONE)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+/*
+ * Set the active bubble on the game-board.
+ *
+ * TODO: Some of these calculations could be re-used from
+ *       the collision-detection above.
+ *
+ * TODO: Consider setting at the previous frame's position,
+ *       before it was inside another bubble.
+ */
+void active_bubble_set (void)
+{
+    /* Get the bubble-centre coordinate within a two-row block */
+    /* Add an extra +1 to the x position to bias towards rolling right. */
+    uint8_t pos_x =      ((active_bubble_x >> 8) + 7 + 1 - 64);
+    uint8_t pos_y =      ((active_bubble_y >> 8) + 7 - 9) % 28;
+
+    /* Get which two-row block the bubble is in */
+    uint8_t repetition = ((active_bubble_y >> 8) + 7 - 9) / 28;
+
+    /* Convert the position into a 16x14 staggered-rectangle position on the game-board.
+     * Then, correct this using the pixel-to-board array, which finds the underlying bubble
+     * position as if this were a hex-grid rather than a staggered-rectangle grid. */
+    uint8_t bubble_tile = 10 + 19 * repetition;
+    if (pos_y < 14) /* 8-bubble row */
+    {
+        bubble_tile += pos_x >> 4;
+        bubble_tile += pixel_to_board [pos_y] [pos_x & 0x0f];
+
+    }
+    else /* 7-bubble row */
+    {
+        bubble_tile += NEIGH_BOTTOM_LEFT;
+        bubble_tile += (pos_x + 8) >> 4;
+        bubble_tile += pixel_to_board [pos_y - 14] [(pos_x + 8) & 0x0f];
+    }
+
+    set_bubble (bubble_tile, BUBBLE_CYAN);
 }
 
 
@@ -458,9 +429,6 @@ void main (void)
         uint16_t key_pressed = SMS_getKeysPressed ();
         uint16_t key_status = SMS_getKeysStatus ();
 
-        /* Handle input */
-        debug_cursor (key_pressed, key_status);
-
         /* Aiming */
         uint16_t key_horizontal = key_status & (PORT_A_KEY_LEFT | PORT_A_KEY_RIGHT);
         uint16_t key_vertical = key_status & (PORT_A_KEY_UP | PORT_A_KEY_DOWN);
@@ -514,38 +482,46 @@ void main (void)
         /* Movement */
         if (state == BUBBLE_MOVING)
         {
-            active_bubble_x += active_bubble_velocity_x;
-            active_bubble_y += active_bubble_velocity_y;
-
-            /* Bounce off the walls.
-             * Note, math is simplified and uses modulo 16-bit*/
-            /* TODO: Tune the subpixel value to give the half-pixel at the edge like the PS1 version has */
-            if (active_bubble_x < LEFT_EDGE)
+            /* Placing the collision-check here rather than after the velocity
+             * is applied, allows the bubble to enjoy a frame of visible collision.
+             * This seems to be what happens on the PS1 version.
+             *
+             * Revisit this decision once a couple of extra frames are added to
+             * smooth the transition from the overlap-frame to the final position.
+             * If it still looks kinda choppy, then maybe remove the frame of
+             * overlap. */
+            if (active_bubble_collision ())
             {
-                active_bubble_x = 0x8000 - active_bubble_x;
-                active_bubble_velocity_x = -active_bubble_velocity_x;
-            }
-            else if (active_bubble_x > RIGHT_EDGE)
-            {
-                active_bubble_x = 0x6000 - active_bubble_x;
-                active_bubble_velocity_x = -active_bubble_velocity_x;
-            }
+                active_bubble_set ();
 
-
-
-            /* For now, just stop once we reach the end. */
-            if (active_bubble_y < 8 * 0x100)
-            {
                 /* Reset the coordinates for the next bubble */
                 active_bubble_x = LAUNCH_FROM_X;
                 active_bubble_y = LAUNCH_FROM_Y;
                 state = BUBBLE_READY;
             }
+            else
+            {
+                active_bubble_x += active_bubble_velocity_x;
+                active_bubble_y += active_bubble_velocity_y;
+
+                /* Bounce off the walls.
+                 * Note, math is simplified and uses modulo 16-bit*/
+                /* TODO: Tune the subpixel value to give the half-pixel at the edge like the PS1 version has */
+                if (active_bubble_x < LEFT_EDGE)
+                {
+                    active_bubble_x = 0x8000 - active_bubble_x;
+                    active_bubble_velocity_x = -active_bubble_velocity_x;
+                }
+                else if (active_bubble_x > RIGHT_EDGE)
+                {
+                    active_bubble_x = 0x6000 - active_bubble_x;
+                    active_bubble_velocity_x = -active_bubble_velocity_x;
+                }
+            }
         }
 
         /* Sprites */
         SMS_initSprites ();
-        draw_cursor ();
         draw_active_bubble ();
         draw_pip ();
         SMS_copySpritestoSAT ();
