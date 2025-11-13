@@ -32,7 +32,7 @@
 #define PIP_PATTERN             324
 #define BLUE_TILE_PATTERN       325
 #define GRASS_PATTERN           326
-#define BORDER_PATTERN          330
+#define BORDER_PATTERN          332
 
 /* Global state */
 uint8_t cursor_x = 128;
@@ -429,6 +429,12 @@ void main (void)
             for (uint8_t x = 0; x < 32; x++)
             {
                 row [x] = GRASS_PATTERN + (x & 0x01);
+            }
+            /* While trying out a lighter blue within the game-board area,
+             * special light-blue-sky grass tiles are needed to match. */
+            for (uint8_t x = 8; x < 24; x++)
+            {
+                row [x] += 4;
             }
             row [7] = BORDER_PATTERN + 6;
             row [24] = BORDER_PATTERN + 7;
