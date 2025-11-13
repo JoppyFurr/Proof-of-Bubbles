@@ -416,7 +416,11 @@ void main (void)
             for (uint8_t x = 8; x < 24; x++)
             {
                 /* Trying a lighter blue in the game-board, using the sprite
-                 * palette. Doesn't reach all the way to the grass though.. */
+                 * palette. Doesn't reach all the way to the grass though..
+                 *
+                 * Either the background palette needs to add the light blue,
+                 * or the sprite palette needs to have the grass, which would
+                 * lock in the green bubble. */
                 row [x] = BLUE_TILE_PATTERN | 0x0800;
             }
         }
@@ -460,6 +464,15 @@ void main (void)
             pattern_index += 1;
         }
         SMS_loadTileMapArea (8 + strip, 1, strip_map, 1, 20);
+    }
+
+    /* Yellow line */
+    const uint32_t yellow_line [2] = { 0x000000ff, 0x0000ff00 };
+    uint16_t line_index = 18 * 32 + 4;
+    for (uint8_t x = 0; x < 16; x++)
+    {
+        SMS_VRAMmemcpy (line_index, yellow_line, 8);
+        line_index += 640;
     }
 
     SMS_displayOn ();

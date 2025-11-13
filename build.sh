@@ -31,9 +31,10 @@ build_bubbles_for_master_system ()
     # Background palette [0] is blue (background colour)
     # Background palette [1] is black
     # Sprite palette [0] is lighter blue (game-board background colour)
-    # Sprite palette [1] is black
+    # Sprite palette [1] is Yellow (for uncrossable line)
+    # Sprite palette [2] is Gold (for uncrossable line)
     GAME_BACKGROUND_PALETTE="0x30 0x00"
-    GAME_SPRITE_PALETTE="0x34 0x00"
+    GAME_SPRITE_PALETTE="0x34 0x0f 0x0b"
 
     echo "  Generating tile data..."
     mkdir -p game_tile_data
