@@ -27,6 +27,13 @@
 #include "../game_tile_data/pattern_index.h"
 #include "../game_tile_data/palette.h"
 
+/* VRAM Locations */
+#define ACTIVE_BUBBLE_PATTERN   320
+#define PIP_PATTERN             324
+#define BLUE_TILE_PATTERN       325
+#define GRASS_PATTERN           326
+#define BORDER_PATTERN          330
+
 /* Global state */
 uint8_t cursor_x = 128;
 uint8_t cursor_y = 96;
@@ -147,10 +154,10 @@ void draw_active_bubble (void)
     /* TODO: Union or pointer math to avoid the shifts */
     uint8_t x = active_bubble_x >> 8;
     uint8_t y = active_bubble_y >> 8;
-    SMS_addSprite (x,     y,     (uint8_t) (326    ));
-    SMS_addSprite (x + 8, y,     (uint8_t) (326 + 1));
-    SMS_addSprite (x,     y + 8, (uint8_t) (326 + 2));
-    SMS_addSprite (x + 8, y + 8, (uint8_t) (326 + 3));
+    SMS_addSprite (x,     y,     (uint8_t) (ACTIVE_BUBBLE_PATTERN + 0));
+    SMS_addSprite (x + 8, y,     (uint8_t) (ACTIVE_BUBBLE_PATTERN + 1));
+    SMS_addSprite (x,     y + 8, (uint8_t) (ACTIVE_BUBBLE_PATTERN + 2));
+    SMS_addSprite (x + 8, y + 8, (uint8_t) (ACTIVE_BUBBLE_PATTERN + 3));
 }
 
 
@@ -162,7 +169,7 @@ void draw_pip (void)
 {
     uint8_t pip_x = 127 + (angle_data [launcher_aim].x >> 6);
     uint8_t pip_y = 161 + (angle_data [launcher_aim].y >> 6);
-    SMS_addSprite (pip_x, pip_y, (uint8_t) (334));
+    SMS_addSprite (pip_x, pip_y, (uint8_t) (PIP_PATTERN));
 }
 
 
@@ -363,53 +370,74 @@ void main (void)
         UNSAFE_SMS_load1Tile (blue_tile, i);
     }
 
-    /* Patterns 320: Blue tile */
-    SMS_loadTiles (blue_tile, 320, sizeof (blue_tile));
+    /* Patterns 320-323: Active bubble (sprite) */
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [0] << 3], 320, 32);
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [1] << 3], 321, 32);
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [2] << 3], 322, 32);
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [3] << 3], 323, 32);
 
-    /* Patterns 321: Black tile */
-    SMS_loadTiles (black_tile, 321, sizeof (black_tile));
+    /* Pattern 324: Indicator pip */
+    SMS_loadTiles (pip_patterns, PIP_PATTERN, sizeof (pip_patterns));
 
-    /* Patterns 322-325: Debug cursor */
-    SMS_loadTiles (cursor_patterns, 322, sizeof (cursor_patterns));
+    /* Patterns 325: Blue tile */
+    SMS_loadTiles (blue_tile, BLUE_TILE_PATTERN, sizeof (blue_tile));
 
-    /* Patterns 326-329: Bubble in launcher (sprite) */
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [0] << 3], 326, 32);
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [1] << 3], 327, 32);
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [2] << 3], 328, 32);
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [3] << 3], 329, 32);
+    /* Patterns 326-329: Grass */
+    SMS_loadTiles (grass_patterns, GRASS_PATTERN, sizeof (grass_patterns));
 
-    /* Patterns 330-333: Grass */
-    SMS_loadTiles (grass_patterns, 330, sizeof (grass_patterns));
+    /* Patterns 330-337: Border */
+    SMS_loadTiles (border_patterns, BORDER_PATTERN, sizeof (border_patterns));
 
-    /* Pattern 334: Indicator pip */
-    SMS_loadTiles (pip_patterns, 334, sizeof (pip_patterns));
-
-    /* Tile-map: Basic background and border around game board */
+    /* Tile-map: Background and border around game board */
     for (uint8_t y = 0; y < 24; y++)
     {
         uint16_t row [32];
+
+        /* Blue fill */
         for (uint8_t x = 0; x < 32; x++)
         {
-            /* Black border */
-            if (x >= 7 && x <= 24 && y == 0 ||
-                x == 7 || x == 24)
-            {
-                row [x] = 321;
-            }
-            else
-            {
-                row [x] = 320;
-            }
-
+            row [x] = BLUE_TILE_PATTERN;
         }
-        SMS_loadTileMapArea (0, y, row, 32, 1);
-    }
 
-    /* Tile-map: Grass */
-    for (uint8_t x = 0; x < 32; x += 2)
-    {
-        uint16_t grass_block [4] = { 330, 331, 332, 333 };
-        SMS_loadTileMapArea (x, 22, grass_block, 2, 2);
+        /* Wood-texture border */
+        if (y == 0) /* First line */
+        {
+            row [7] = BORDER_PATTERN + 0;
+            for (uint8_t x = 8; x < 24; x++)
+            {
+                row [x] = BORDER_PATTERN + 1;
+            }
+            row [24] = BORDER_PATTERN + 2;
+        }
+        else if (y < 22) /* Middle */
+        {
+            row [7] = BORDER_PATTERN + 3;
+            row [24] = BORDER_PATTERN + 5;
+            for (uint8_t x = 8; x < 24; x++)
+            {
+                /* Trying a lighter blue in the game-board, using the sprite
+                 * palette. Doesn't reach all the way to the grass though.. */
+                row [x] = BLUE_TILE_PATTERN | 0x0800;
+            }
+        }
+        else if (y == 22) /* Grass row 1 */
+        {
+            for (uint8_t x = 0; x < 32; x++)
+            {
+                row [x] = GRASS_PATTERN + (x & 0x01);
+            }
+            row [7] = BORDER_PATTERN + 6;
+            row [24] = BORDER_PATTERN + 7;
+        }
+        else if (y == 23) /* Grass row 2 */
+        {
+            for (uint8_t x = 0; x < 32; x++)
+            {
+                row [x] = GRASS_PATTERN + 2 + (x & 0x01);
+            }
+        }
+
+        SMS_loadTileMapArea (0, y, row, 32, 1);
     }
 
     /* Tile-map: Game board strips
@@ -518,10 +546,14 @@ void main (void)
                     active_bubble = BUBBLE_CYAN;
                 }
 
-                SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [0] << 3], 326, 32);
-                SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [1] << 3], 327, 32);
-                SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [2] << 3], 328, 32);
-                SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [3] << 3], 329, 32);
+                SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [0] << 3],
+                               ACTIVE_BUBBLE_PATTERN + 0, 32);
+                SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [1] << 3],
+                               ACTIVE_BUBBLE_PATTERN + 1, 32);
+                SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [2] << 3],
+                               ACTIVE_BUBBLE_PATTERN + 2, 32);
+                SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [3] << 3],
+                               ACTIVE_BUBBLE_PATTERN + 3, 32);
 
                 state = BUBBLE_READY;
             }

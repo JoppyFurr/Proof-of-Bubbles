@@ -30,8 +30,10 @@ build_bubbles_for_master_system ()
 
     # Background palette [0] is blue (background colour)
     # Background palette [1] is black
+    # Sprite palette [0] is lighter blue (game-board background colour)
+    # Sprite palette [1] is black
     GAME_BACKGROUND_PALETTE="0x30 0x00"
-    GAME_SPRITE_PALETTE="0x30 0x00"
+    GAME_SPRITE_PALETTE="0x34 0x00"
 
     echo "  Generating tile data..."
     mkdir -p game_tile_data
@@ -39,10 +41,10 @@ build_bubbles_for_master_system ()
         ${sneptile} --sprites --output-dir game_tile_data \
             --sprite-palette ${GAME_SPRITE_PALETTE} \
             --background-palette ${GAME_BACKGROUND_PALETTE} \
-            --panels 2x2,1 tiles/cursor.png \
+            --background tiles/border.png \
             --panels 2x2,25 tiles/bubbles.png \
-            tiles/pip.png \
-            --background tiles/grass.png
+            --background tiles/grass.png \
+            tiles/pip.png
     )
 
     mkdir -p build/code
