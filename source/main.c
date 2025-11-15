@@ -17,6 +17,7 @@
  */
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "SMSlib.h"
 
@@ -69,6 +70,8 @@ typedef enum game_state_e {
     BUBBLE_READY = 0,
     BUBBLE_MOVING
 } game_state_t;
+
+game_state_t state = BUBBLE_READY;
 
 #define BOARD_ROWS 11
 #define BOARD_COLS 8
@@ -322,7 +325,7 @@ bool active_bubble_collision (void)
  * TODO: Consider setting at the previous frame's position,
  *       before it was inside another bubble.
  */
-void active_bubble_set (void)
+uint8_t active_bubble_set (void)
 {
     /* Get the bubble-centre coordinate within a two-row block */
     /* Add an extra +1 to the x position to bias towards rolling right. */
@@ -350,6 +353,174 @@ void active_bubble_set (void)
     }
 
     set_bubble (bubble_tile, active_bubble);
+    return bubble_tile;
+}
+
+
+/*
+ * Load the next bubble into the launcher.
+ */
+void load_next_bubble (void)
+{
+    /* Reset the coordinates for the next bubble */
+    active_bubble_x = LAUNCH_FROM_X;
+    active_bubble_y = LAUNCH_FROM_Y;
+
+    /* For now, just cycle between the colours */
+    active_bubble += 1;
+    if (active_bubble >= BUBBLE_MAX)
+    {
+        active_bubble = BUBBLE_CYAN;
+    }
+
+    /* Load sprite into VRAM */
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [0] << 3],
+                   ACTIVE_BUBBLE_PATTERN + 0, 32);
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [1] << 3],
+                   ACTIVE_BUBBLE_PATTERN + 1, 32);
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [2] << 3],
+                   ACTIVE_BUBBLE_PATTERN + 2, 32);
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [3] << 3],
+                   ACTIVE_BUBBLE_PATTERN + 3, 32);
+
+    state = BUBBLE_READY;
+}
+
+
+/*
+ * Play one round of the game.
+ * For now, the only 'level' is an all-blank starting position.
+ */
+void play_level (void)
+{
+    /* Clear the game board */
+    memset (game_board, BUBBLE_NONE, sizeof (game_board));
+
+    /* TODO: Hide the clearing of the board. Eg, use an all-blue sprite
+     *       palette or update the name-table to show all-blank tiles. */
+    for (uint16_t i = 0; i < 320; i++)
+    {
+        SMS_loadTiles (blue_tile, i, 32);
+    }
+
+    /* Yellow line */
+    const uint32_t yellow_line [2] = { 0x000000ff, 0x0000ff00 };
+    uint16_t line_index = 18 * 32 + 4;
+    for (uint8_t x = 0; x < 16; x++)
+    {
+        SMS_VRAMmemcpy (line_index, yellow_line, 8);
+        line_index += 640;
+    }
+
+    load_next_bubble ();
+
+    while (true)
+    {
+        SMS_waitForVBlank ();
+        uint16_t key_pressed = SMS_getKeysPressed ();
+        uint16_t key_status = SMS_getKeysStatus ();
+
+        /* Aiming */
+        uint16_t key_horizontal = key_status & (PORT_A_KEY_LEFT | PORT_A_KEY_RIGHT);
+        uint16_t key_vertical = key_status & (PORT_A_KEY_UP | PORT_A_KEY_DOWN);
+        if (key_horizontal)
+        {
+            if (key_horizontal == PORT_A_KEY_LEFT && launcher_aim > LAUNCHER_AIM_MIN)
+            {
+                launcher_aim -= 1;
+            }
+            else if (key_horizontal == PORT_A_KEY_RIGHT && launcher_aim < LAUNCHER_AIM_MAX)
+            {
+                launcher_aim += 1;
+            }
+        }
+        else if (key_vertical)
+        {
+            if (key_vertical == PORT_A_KEY_UP)
+            {
+                if (launcher_aim < LAUNCHER_AIM_CENTRE)
+                {
+                    launcher_aim++;
+                }
+                else if (launcher_aim > LAUNCHER_AIM_CENTRE)
+                {
+                    launcher_aim--;
+                }
+            }
+            else if (key_vertical == PORT_A_KEY_DOWN)
+            {
+                if (launcher_aim > LAUNCHER_AIM_MIN && launcher_aim < LAUNCHER_AIM_CENTRE)
+                {
+                    launcher_aim--;
+                }
+                else if (launcher_aim > LAUNCHER_AIM_CENTRE && launcher_aim < LAUNCHER_AIM_MAX)
+                {
+                    launcher_aim++;
+                }
+            }
+        }
+
+        if (key_pressed & PORT_A_KEY_1)
+        {
+            if (state == BUBBLE_READY)
+            {
+                active_bubble_velocity_x = angle_data [launcher_aim].x;
+                active_bubble_velocity_y = angle_data [launcher_aim].y;
+                state = BUBBLE_MOVING;
+            }
+        }
+
+        /* Movement */
+        if (state == BUBBLE_MOVING)
+        {
+            /* Placing the collision-check here rather than after the velocity
+             * is applied, allows the bubble to enjoy a frame of visible collision.
+             * This seems to be what happens on the PS1 version.
+             *
+             * Revisit this decision once a couple of extra frames are added to
+             * smooth the transition from the overlap-frame to the final position.
+             * If it still looks kinda choppy, then maybe remove the frame of
+             * overlap. */
+            if (active_bubble_collision ())
+            {
+                uint8_t landed = active_bubble_set ();
+                if (landed >= 105)
+                {
+                    /* A bubble crossed the line, end the round. */
+                    return;
+                }
+                else
+                {
+                    load_next_bubble ();
+                }
+            }
+            else
+            {
+                active_bubble_x += active_bubble_velocity_x;
+                active_bubble_y += active_bubble_velocity_y;
+
+                /* Bounce off the walls.
+                 * Note, math is simplified and uses modulo 16-bit*/
+                /* TODO: Tune the subpixel value to give the half-pixel at the edge like the PS1 version has */
+                if (active_bubble_x < LEFT_EDGE)
+                {
+                    active_bubble_x = 0x8000 - active_bubble_x;
+                    active_bubble_velocity_x = -active_bubble_velocity_x;
+                }
+                else if (active_bubble_x > RIGHT_EDGE)
+                {
+                    active_bubble_x = 0x6000 - active_bubble_x;
+                    active_bubble_velocity_x = -active_bubble_velocity_x;
+                }
+            }
+        }
+
+        /* Sprites */
+        SMS_initSprites ();
+        draw_active_bubble ();
+        draw_pip ();
+        SMS_copySpritestoSAT ();
+    }
 }
 
 
@@ -472,136 +643,11 @@ void main (void)
         SMS_loadTileMapArea (8 + strip, 1, strip_map, 1, 20);
     }
 
-    /* Yellow line */
-    const uint32_t yellow_line [2] = { 0x000000ff, 0x0000ff00 };
-    uint16_t line_index = 18 * 32 + 4;
-    for (uint8_t x = 0; x < 16; x++)
-    {
-        SMS_VRAMmemcpy (line_index, yellow_line, 8);
-        line_index += 640;
-    }
-
     SMS_displayOn ();
-
-    game_state_t state = BUBBLE_READY;
 
     while (true)
     {
-        SMS_waitForVBlank ();
-        uint16_t key_pressed = SMS_getKeysPressed ();
-        uint16_t key_status = SMS_getKeysStatus ();
-
-        /* Aiming */
-        uint16_t key_horizontal = key_status & (PORT_A_KEY_LEFT | PORT_A_KEY_RIGHT);
-        uint16_t key_vertical = key_status & (PORT_A_KEY_UP | PORT_A_KEY_DOWN);
-        if (key_horizontal)
-        {
-            if (key_horizontal == PORT_A_KEY_LEFT && launcher_aim > LAUNCHER_AIM_MIN)
-            {
-                launcher_aim -= 1;
-            }
-            else if (key_horizontal == PORT_A_KEY_RIGHT && launcher_aim < LAUNCHER_AIM_MAX)
-            {
-                launcher_aim += 1;
-            }
-        }
-        else if (key_vertical)
-        {
-            if (key_vertical == PORT_A_KEY_UP)
-            {
-                if (launcher_aim < LAUNCHER_AIM_CENTRE)
-                {
-                    launcher_aim++;
-                }
-                else if (launcher_aim > LAUNCHER_AIM_CENTRE)
-                {
-                    launcher_aim--;
-                }
-            }
-            else if (key_vertical == PORT_A_KEY_DOWN)
-            {
-                if (launcher_aim > LAUNCHER_AIM_MIN && launcher_aim < LAUNCHER_AIM_CENTRE)
-                {
-                    launcher_aim--;
-                }
-                else if (launcher_aim > LAUNCHER_AIM_CENTRE && launcher_aim < LAUNCHER_AIM_MAX)
-                {
-                    launcher_aim++;
-                }
-            }
-        }
-
-        if (key_pressed & PORT_A_KEY_1)
-        {
-            if (state == BUBBLE_READY)
-            {
-                active_bubble_velocity_x = angle_data [launcher_aim].x;
-                active_bubble_velocity_y = angle_data [launcher_aim].y;
-                state = BUBBLE_MOVING;
-            }
-        }
-
-        /* Movement */
-        if (state == BUBBLE_MOVING)
-        {
-            /* Placing the collision-check here rather than after the velocity
-             * is applied, allows the bubble to enjoy a frame of visible collision.
-             * This seems to be what happens on the PS1 version.
-             *
-             * Revisit this decision once a couple of extra frames are added to
-             * smooth the transition from the overlap-frame to the final position.
-             * If it still looks kinda choppy, then maybe remove the frame of
-             * overlap. */
-            if (active_bubble_collision ())
-            {
-                active_bubble_set ();
-
-                /* Reset the coordinates for the next bubble */
-                active_bubble_x = LAUNCH_FROM_X;
-                active_bubble_y = LAUNCH_FROM_Y;
-                active_bubble += 1;
-                if (active_bubble >= BUBBLE_MAX)
-                {
-                    active_bubble = BUBBLE_CYAN;
-                }
-
-                SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [0] << 3],
-                               ACTIVE_BUBBLE_PATTERN + 0, 32);
-                SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [1] << 3],
-                               ACTIVE_BUBBLE_PATTERN + 1, 32);
-                SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [2] << 3],
-                               ACTIVE_BUBBLE_PATTERN + 2, 32);
-                SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [3] << 3],
-                               ACTIVE_BUBBLE_PATTERN + 3, 32);
-
-                state = BUBBLE_READY;
-            }
-            else
-            {
-                active_bubble_x += active_bubble_velocity_x;
-                active_bubble_y += active_bubble_velocity_y;
-
-                /* Bounce off the walls.
-                 * Note, math is simplified and uses modulo 16-bit*/
-                /* TODO: Tune the subpixel value to give the half-pixel at the edge like the PS1 version has */
-                if (active_bubble_x < LEFT_EDGE)
-                {
-                    active_bubble_x = 0x8000 - active_bubble_x;
-                    active_bubble_velocity_x = -active_bubble_velocity_x;
-                }
-                else if (active_bubble_x > RIGHT_EDGE)
-                {
-                    active_bubble_x = 0x6000 - active_bubble_x;
-                    active_bubble_velocity_x = -active_bubble_velocity_x;
-                }
-            }
-        }
-
-        /* Sprites */
-        SMS_initSprites ();
-        draw_active_bubble ();
-        draw_pip ();
-        SMS_copySpritestoSAT ();
+        play_level ();
     }
 
 }
