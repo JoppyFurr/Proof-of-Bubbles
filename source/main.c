@@ -59,11 +59,19 @@ typedef enum bubble_e {
 } bubble_t;
 
 uint8_t launcher_aim = LAUNCHER_AIM_CENTRE;
-bubble_t active_bubble = BUBBLE_CYAN;
-uint16_t active_bubble_velocity_x = 0;
-uint16_t active_bubble_velocity_y = 0;
-uint16_t active_bubble_x = LAUNCH_FROM_X;
-uint16_t active_bubble_y = LAUNCH_FROM_Y;
+
+/* The "active bubble" is the single bubble that is currently:
+ *  - Loaded into the bubble-launcher, or
+ *  - In flight, or
+ *  - In the process of landing.
+ * A lot of functionality interacts with the active bubble, so
+ * the state is made global for quick access. */
+static bubble_t active_bubble_colour = BUBBLE_CYAN;
+static uint16_t active_bubble_velocity_x = 0;
+static uint16_t active_bubble_velocity_y = 0;
+static uint16_t active_bubble_x = LAUNCH_FROM_X;
+static uint16_t active_bubble_y = LAUNCH_FROM_Y;
+static uint8_t active_bubble_board_position = 0;
 
 
 typedef enum game_state_e {
@@ -81,17 +89,27 @@ game_state_t state = BUBBLE_READY;
  * to avoid the need for bounds-checking.
  *
  *  -> 6 rows have 8 bubbles (8 rows of 10 bubbles considering the border)
- *  -> 5 rows have 7 bubbles (9 rows of 9 bubbles considering the border)
+ *  -> 5 rows have 7 bubbles (7 rows of 9 bubbles considering the border)
  *
- *  8 * 10 + 9 * 9 = 161 positions in the array.
+ *  8 * 10 + 7 * 9 = 161 positions in the array.
  */
-bubble_t game_board [161];
+bubble_t game_board [143];
 #define NEIGH_TOP_LEFT    -10
 #define NEIGH_TOP_RIGHT    -9
 #define NEIGH_LEFT         -1
 #define NEIGH_RIGHT         1
 #define NEIGH_BOTTOM_LEFT   9
 #define NEIGH_BOTTOM_RIGHT 10
+static int8_t neighbours [6] = { NEIGH_TOP_LEFT, NEIGH_TOP_RIGHT,   NEIGH_LEFT,
+                                 NEIGH_RIGHT,    NEIGH_BOTTOM_LEFT, NEIGH_BOTTOM_RIGHT };
+
+/* A duplicate table sharing the same coordinate system as the game board.
+ * Used when checking for matching groups of bubbles. Note: This could could be
+ * made smaller to exclude borders and the row that is already across the line. */
+uint8_t match_map [143];
+#define MATCH_UNCHECKED     0
+#define MATCH_QUEUED        1
+#define MATCH_CONFIRMED     2
 
 /* Using a simple division by 14 to get the row, and division by 16 (after accounting
  * for stagger) to get the column gets a close estimate of a pixel's game-board position.
@@ -317,7 +335,7 @@ bool active_bubble_collision (void)
 
 
 /*
- * Set the active bubble on the game-board.
+ * Get the active bubble's position on the game-board.
  *
  * TODO: Some of these calculations could be re-used from
  *       the collision-detection above.
@@ -325,7 +343,7 @@ bool active_bubble_collision (void)
  * TODO: Consider setting at the previous frame's position,
  *       before it was inside another bubble.
  */
-uint8_t active_bubble_set (void)
+void active_bubble_calculate_board_position (void)
 {
     /* Get the bubble-centre coordinate within a two-row block */
     /* Add an extra +1 to the x position to bias towards rolling right. */
@@ -352,8 +370,72 @@ uint8_t active_bubble_set (void)
         bubble_tile += pixel_to_board [pos_y - 14] [(pos_x + 8) & 0x0f];
     }
 
-    set_bubble (bubble_tile, active_bubble);
-    return bubble_tile;
+    active_bubble_board_position = bubble_tile;
+}
+
+
+/*
+ * Check if the active bubble, having just
+ * landed, has formed a group of three to pop.
+ */
+bool active_bubble_try_pop (void)
+{
+    /* TODO: Rather than clearing the match-map just before use, it could
+     *       be marked dirty, to be automatically zeroed when some spare
+     *       time is available. Eg, during the VDP active-area period. */
+    memset (match_map, MATCH_UNCHECKED, sizeof (match_map));
+
+    uint8_t stack [80];
+    uint8_t stack_size = 0;
+    uint8_t match_count = 0;
+
+    /* The stack contains matching bubbles to explore */
+    stack [stack_size++] = active_bubble_board_position;
+
+    while (stack_size > 0)
+    {
+        uint8_t match_pos = stack [--stack_size];
+
+        /* Skip matching bubbles that have already been explored. */
+        if (match_map [match_pos] == MATCH_CONFIRMED)
+        {
+            continue;
+        }
+
+        /* Add each newly-found matching neighbour to the stack */
+        for (uint8_t n = 0; n < 6; n++)
+        {
+            uint8_t neighbour = match_pos + neighbours [n];
+
+            if (match_map [neighbour] == MATCH_UNCHECKED &&
+                game_board [neighbour] == active_bubble_colour)
+            {
+                stack [stack_size++] = neighbour;
+                match_map [neighbour] = MATCH_QUEUED;
+            }
+        }
+
+        /* Mark this bubble as having been explored. */
+        match_map [match_pos] = MATCH_CONFIRMED;
+        match_count++;
+    }
+
+    if (match_count >= 3)
+    {
+        /* Clear each of the matching bubbles */
+        /* NOTE: Could either iterate over the map, or
+         *       could maintain a list, to avoid the 100+
+         *       item iteration. */
+        for (uint8_t i = 10; i <= 102; i++)
+        {
+            if (match_map [i] == MATCH_CONFIRMED)
+            {
+                set_bubble (i, BUBBLE_NONE);
+            }
+        }
+        return true;
+    }
+    return false;
 }
 
 
@@ -367,20 +449,20 @@ void load_next_bubble (void)
     active_bubble_y = LAUNCH_FROM_Y;
 
     /* For now, just cycle between the colours */
-    active_bubble += 1;
-    if (active_bubble >= BUBBLE_MAX)
+    active_bubble_colour += 1;
+    if (active_bubble_colour >= BUBBLE_MAX)
     {
-        active_bubble = BUBBLE_CYAN;
+        active_bubble_colour = BUBBLE_CYAN;
     }
 
     /* Load sprite into VRAM */
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [0] << 3],
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble_colour * BUBBLE_MAX] [0] << 3],
                    ACTIVE_BUBBLE_PATTERN + 0, 32);
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [1] << 3],
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble_colour * BUBBLE_MAX] [1] << 3],
                    ACTIVE_BUBBLE_PATTERN + 1, 32);
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [2] << 3],
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble_colour * BUBBLE_MAX] [2] << 3],
                    ACTIVE_BUBBLE_PATTERN + 2, 32);
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble * BUBBLE_MAX] [3] << 3],
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble_colour * BUBBLE_MAX] [3] << 3],
                    ACTIVE_BUBBLE_PATTERN + 3, 32);
 
     state = BUBBLE_READY;
@@ -483,16 +565,23 @@ void play_level (void)
              * overlap. */
             if (active_bubble_collision ())
             {
-                uint8_t landed = active_bubble_set ();
-                if (landed >= 105)
+                active_bubble_calculate_board_position ();
+
+                if (active_bubble_try_pop ())
                 {
-                    /* A bubble crossed the line, end the round. */
-                    return;
+                    /* The bubble has popped, so don't set it on the game board. */
                 }
                 else
                 {
-                    load_next_bubble ();
+                    set_bubble (active_bubble_board_position, active_bubble_colour);
+                    if (active_bubble_board_position >= 105)
+                    {
+                        /* A bubble crossed the line, end the round. */
+                        return;
+                    }
                 }
+
+                load_next_bubble ();
             }
             else
             {
