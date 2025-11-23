@@ -111,6 +111,14 @@ uint8_t match_map [143];
 #define MATCH_QUEUED        1
 #define MATCH_CONFIRMED     2
 
+/* Similar to above, a duplicate table sharing the same coordinate system as
+ * the game board. But this time, it's for determining if bubbles are connected
+ * to the top of the game-board. Any bubbles that are not connected need to drop. */
+uint8_t float_map [143];
+#define FLOAT_UNCHECKED     0
+#define FLOAT_QUEUED        1
+#define FLOAT_CONNECTED     2
+
 /* Using a simple division by 14 to get the row, and division by 16 (after accounting
  * for stagger) to get the column gets a close estimate of a pixel's game-board position.
  * However, the bubbles aren't rectangular,  so the pixel coordinate within the rectangle
@@ -440,6 +448,71 @@ bool active_bubble_try_pop (void)
 
 
 /*
+ * Check for any disconnected bubbles
+ */
+void floating_bubble_check (void)
+{
+    /* TODO: Rather than clearing the float-map just before use, it could
+     *       be marked dirty, to be automatically zeroed when some spare
+     *       time is available. Eg, during the VDP active-area period. */
+    memset (float_map, FLOAT_UNCHECKED, sizeof (float_map));
+
+    uint8_t stack [80];
+    uint8_t stack_size = 0;
+    uint8_t match_count = 0;
+
+    /* The stack is initialized with the top row of bubbles */
+    for (uint8_t i = 0; i < 8; i++)
+    {
+        if (game_board [10 + i] != BUBBLE_NONE)
+        {
+            stack [stack_size++] = 10 + i;
+            float_map [10 + i] = FLOAT_QUEUED;
+        }
+    }
+
+    while (stack_size > 0)
+    {
+        uint8_t match_pos = stack [--stack_size];
+
+        /* Skip matching bubbles that have already been explored. */
+        if (float_map [match_pos] == FLOAT_CONNECTED)
+        {
+            continue;
+        }
+
+        /* Add each newly-found connected neighbour to the stack */
+        for (uint8_t n = 0; n < 6; n++)
+        {
+            uint8_t neighbour = match_pos + neighbours [n];
+
+            if (float_map [neighbour] == FLOAT_UNCHECKED &&
+                game_board [neighbour] != BUBBLE_NONE)
+            {
+                stack [stack_size++] = neighbour;
+                float_map [neighbour] = FLOAT_QUEUED;
+            }
+        }
+
+        /* Mark this bubble as having been explored. */
+        float_map [match_pos] = FLOAT_CONNECTED;
+        match_count++;
+    }
+
+    /* Clear each of the unconnected bubbles */
+    /* TODO: This should be a falling animation, rather
+     *       than the bubbles just disappearing. */
+    for (uint8_t i = 10; i <= 102; i++)
+    {
+        if (game_board [i] != BUBBLE_NONE && float_map [i] != FLOAT_CONNECTED)
+        {
+            set_bubble (i, BUBBLE_NONE);
+        }
+    }
+}
+
+
+/*
  * Load the next bubble into the launcher.
  */
 void load_next_bubble (void)
@@ -569,7 +642,8 @@ void play_level (void)
 
                 if (active_bubble_try_pop ())
                 {
-                    /* The bubble has popped, so don't set it on the game board. */
+                    /* The bubble has popped, check if this triggers any others to fall */
+                    floating_bubble_check ();
                 }
                 else
                 {
