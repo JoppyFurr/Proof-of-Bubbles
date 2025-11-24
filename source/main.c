@@ -21,7 +21,7 @@
 
 #include "SMSlib.h"
 
-#include "angles.h"
+#include "data.h"
 
 #define TARGET_SMS
 #include "../game_tile_data/patterns.h"
@@ -34,6 +34,7 @@
 #define BLUE_TILE_PATTERN       325
 #define GRASS_PATTERN           326
 #define BORDER_PATTERN          332
+#define FALLING_BUBBLE_PATTERN  340
 
 /* Global state */
 uint8_t cursor_x = 128;
@@ -118,54 +119,6 @@ uint8_t float_map [143];
 #define FLOAT_UNCHECKED     0
 #define FLOAT_QUEUED        1
 #define FLOAT_CONNECTED     2
-
-/* Using a simple division by 14 to get the row, and division by 16 (after accounting
- * for stagger) to get the column gets a close estimate of a pixel's game-board position.
- * However, the bubbles aren't rectangular,  so the pixel coordinate within the rectangle
- * index the pixel-to-board array to reach the correct the game-board position */
-static const int8_t pixel_to_board [14] [16] = {
-    { -10, -10, -10,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -9,  -9,  -9 },
-    { -10,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -9 },
-    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
-    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
-    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
-    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
-    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
-    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
-    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
-    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
-    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
-    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
-    {  +9,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, +10 },
-    {  +9,  +9,  +9,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, +10, +10, +10 }
-};
-
-/* Using the same 16x14 staggered-rectangle grid as above, a bitmap is defined for which
- * bubble-positions are collided with. The coordinates used to index this table is that
- * of the pixel at (7, 7) within the 16 x 16 pixel bubble sprite. */
-#define COLLISION_TOP_LEFT      0x01
-#define COLLISION_TOP_RIGHT     0x02
-#define COLLISION_LEFT          0x04
-#define COLLISION_RIGHT         0x08
-#define COLLISION_BOTTOM_LEFT   0x10
-#define COLLISION_BOTTOM_RIGHT  0x20
-static const uint8_t pixel_to_collision [14] [16] = {
-    { 0x05, 0x05, 0x07, 0x07, 0x07, 0x07, 0x03, 0x03,  0x03, 0x0b, 0x0b, 0x0b, 0x0b, 0x0a, 0x0a, 0x0a },
-    { 0x05, 0x05, 0x07, 0x07, 0x07, 0x07, 0x07, 0x03,  0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0a, 0x0a, 0x0a },
-    { 0x05, 0x05, 0x05, 0x07, 0x07, 0x07, 0x07, 0x03,  0x0b, 0x0b, 0x0b, 0x0b, 0x0a, 0x0a, 0x0a, 0x0a },
-    { 0x05, 0x05, 0x05, 0x05, 0x07, 0x07, 0x07, 0x03,  0x0b, 0x0b, 0x0b, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a },
-    { 0x05, 0x05, 0x05, 0x05, 0x05, 0x07, 0x07, 0x03,  0x0b, 0x0b, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a },
-    { 0x15, 0x15, 0x15, 0x15, 0x15, 0x05, 0x07, 0x03,  0x0b, 0x0a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a },
-    { 0x15, 0x15, 0x15, 0x15, 0x15, 0x15, 0x15, 0x00,  0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a },
-    { 0x15, 0x15, 0x15, 0x15, 0x15, 0x14, 0x34, 0x30,  0x38, 0x28, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a },
-    { 0x14, 0x14, 0x14, 0x14, 0x14, 0x34, 0x34, 0x30,  0x38, 0x38, 0x28, 0x28, 0x28, 0x28, 0x28, 0x28 },
-    { 0x14, 0x14, 0x14, 0x14, 0x34, 0x34, 0x34, 0x30,  0x38, 0x38, 0x38, 0x28, 0x28, 0x28, 0x28, 0x28 },
-    { 0x14, 0x14, 0x14, 0x34, 0x34, 0x34, 0x34, 0x30,  0x38, 0x38, 0x38, 0x38, 0x28, 0x28, 0x28, 0x28 },
-    { 0x14, 0x14, 0x34, 0x34, 0x34, 0x34, 0x34, 0x30,  0x38, 0x38, 0x38, 0x38, 0x38, 0x28, 0x28, 0x28 },
-    { 0x14, 0x14, 0x34, 0x34, 0x34, 0x34, 0x30, 0x30,  0x30, 0x38, 0x38, 0x38, 0x38, 0x28, 0x28, 0x28 },
-    { 0x14, 0x34, 0x34, 0x34, 0x34, 0x34, 0x30, 0x30,  0x30, 0x38, 0x38, 0x38, 0x38, 0x38, 0x28, 0x28 }
-};
-
 
 static const uint32_t blue_tile [32] = { 0x00000000, 0x00000000, 0x00000000, 0x00000000,
                                          0x00000000, 0x00000000, 0x00000000, 0x00000000 };
@@ -448,6 +401,62 @@ bool active_bubble_try_pop (void)
 
 
 /*
+ * Drop a bubble off the bottom of the screen.
+ */
+void bubble_drop (uint8_t position)
+{
+    bubble_t drop_colour = game_board [position];
+
+    set_bubble (position, BUBBLE_NONE);
+
+    /* TODO: If the number of simultaneously falling bubbles >= the number of
+     *       bubble colours, just keep one of each loaded into vram. This would
+     *       be faster (less vram access), but would have an up-front vram cost.
+     *       This could however also share with the active bubble. */
+
+    /* Load sprite into VRAM */
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [drop_colour * BUBBLE_MAX] [0] << 3],
+                   FALLING_BUBBLE_PATTERN + 0, 32);
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [drop_colour * BUBBLE_MAX] [1] << 3],
+                   FALLING_BUBBLE_PATTERN + 1, 32);
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [drop_colour * BUBBLE_MAX] [2] << 3],
+                   FALLING_BUBBLE_PATTERN + 2, 32);
+    SMS_loadTiles (&bubbles_patterns [bubbles_panels [drop_colour * BUBBLE_MAX] [3] << 3],
+                   FALLING_BUBBLE_PATTERN + 3, 32);
+
+    uint8_t x = game_board_x [position];
+    uint8_t y = game_board_y [position];
+
+    /* TODO: Don't wait for vblank here, update drop progress in the main loop. */
+
+    uint8_t velocity = 1;
+    uint8_t frame = 0;
+
+    while (y < 200)
+    {
+        /* Accelerate every five frames */
+        if (frame == 5)
+        {
+            frame = 0;
+            velocity += 1;
+        }
+
+        y += velocity;
+
+        SMS_initSprites ();
+        SMS_addSprite (x,     y,     (uint8_t) (FALLING_BUBBLE_PATTERN + 0));
+        SMS_addSprite (x + 8, y,     (uint8_t) (FALLING_BUBBLE_PATTERN + 1));
+        SMS_addSprite (x,     y + 8, (uint8_t) (FALLING_BUBBLE_PATTERN + 2));
+        SMS_addSprite (x + 8, y + 8, (uint8_t) (FALLING_BUBBLE_PATTERN + 3));
+        SMS_copySpritestoSAT ();
+
+        SMS_waitForVBlank ();
+        frame += 1;
+    }
+}
+
+
+/*
  * Check for any disconnected bubbles
  */
 void floating_bubble_check (void)
@@ -500,13 +509,14 @@ void floating_bubble_check (void)
     }
 
     /* Clear each of the unconnected bubbles */
-    /* TODO: This should be a falling animation, rather
-     *       than the bubbles just disappearing. */
-    for (uint8_t i = 10; i <= 102; i++)
+    /* TODO: In the original game, one bubble begins falling per frame,
+     *       meaning many are falling at once. During this many-falling
+     *       animation, the player can already launch the next bubble.. */
+    for (uint8_t i = 102; i >= 10; i--)
     {
         if (game_board [i] != BUBBLE_NONE && float_map [i] != FLOAT_CONNECTED)
         {
-            set_bubble (i, BUBBLE_NONE);
+            bubble_drop (i);
         }
     }
 }
@@ -716,11 +726,14 @@ void main (void)
     /* Patterns 325: Blue tile */
     SMS_loadTiles (blue_tile, BLUE_TILE_PATTERN, sizeof (blue_tile));
 
-    /* Patterns 326-329: Grass */
+    /* Patterns 326-331: Grass */
     SMS_loadTiles (grass_patterns, GRASS_PATTERN, sizeof (grass_patterns));
 
-    /* Patterns 330-337: Border */
+    /* Patterns 332-339: Border */
     SMS_loadTiles (border_patterns, BORDER_PATTERN, sizeof (border_patterns));
+
+    /* Patterns 340-347 Falling Bubbles (sprites),
+     * For now, two of them. */
 
     /* Tile-map: Background and border around game board */
     for (uint8_t y = 0; y < 24; y++)

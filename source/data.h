@@ -1,0 +1,129 @@
+/*
+ * Tables of data used to implement the game.
+ */
+
+
+/* Rather than having to deal with division on the z80, just keep
+ * a table of the game-board position coordinates. The coordinate
+ * indicates the top-left pixel of the bubble. */
+static const uint8_t game_board_x [114] = {
+      0,    0,    0,    0,    0,    0,    0,    0,    0,
+   0,   64,   80,   96,  112,  128,  144,  160,  176,    0,
+      0,   72,   88,  104,  120,  136,  152,  168,    0,
+   0,   64,   80,   96,  112,  128,  144,  160,  176,    0,
+      0,   72,   88,  104,  120,  136,  152,  168,    0,
+   0,   64,   80,   96,  112,  128,  144,  160,  176,    0,
+      0,   72,   88,  104,  120,  136,  152,  168,    0,
+   0,   64,   80,   96,  112,  128,  144,  160,  176,    0,
+      0,   72,   88,  104,  120,  136,  152,  168,    0,
+   0,   64,   80,   96,  112,  128,  144,  160,  176,    0,
+      0,   72,   88,  104,  120,  136,  152,  168,    0,
+   0,   64,   80,   96,  112,  128,  144,  160,  176,    0
+};
+
+
+static const uint8_t game_board_y [114] = {
+      0,    0,    0,    0,    0,    0,    0,    0,    0,
+   0,    8,    8,    8,    8,    8,    8,    8,    8,    0,
+      0,   22,   22,   22,   22,   22,   22,   22,    0,
+   0,   36,   36,   36,   36,   36,   36,   36,   36,    0,
+      0,   50,   50,   50,   50,   50,   50,   50,    0,
+   0,   64,   64,   64,   64,   64,   64,   64,   64,    0,
+      0,   78,   78,   78,   78,   78,   78,   78,    0,
+   0,   92,   92,   92,   92,   92,   92,   92,   92,    0,
+      0,  106,  106,  106,  106,  106,  106,  106,    0,
+   0,  120,  120,  120,  120,  120,  120,  120,  120,    0,
+      0,  134,  134,  134,  134,  134,  134,  134,    0,
+   0,  148,  148,  148,  148,  148,  148,  148,  148,    0
+};
+
+
+/* Using a simple division by 14 to get the row, and division by 16 (after accounting
+ * for stagger) to get the column gets a close estimate of a pixel's game-board position.
+ * However, the bubbles aren't rectangular,  so the pixel coordinate within the rectangle
+ * index the pixel-to-board array to reach the correct the game-board position */
+static const int8_t pixel_to_board [14] [16] = {
+    { -10, -10, -10,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -9,  -9,  -9 },
+    { -10,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -9 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
+    {  +9,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, +10 },
+    {  +9,  +9,  +9,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, +10, +10, +10 }
+};
+
+
+/* Using the same 16x14 staggered-rectangle grid as above, a bitmap is defined for which
+ * bubble-positions are collided with. The coordinates used to index this table is that
+ * of the pixel at (7, 7) within the 16 x 16 pixel bubble sprite. */
+#define COLLISION_TOP_LEFT      0x01
+#define COLLISION_TOP_RIGHT     0x02
+#define COLLISION_LEFT          0x04
+#define COLLISION_RIGHT         0x08
+#define COLLISION_BOTTOM_LEFT   0x10
+#define COLLISION_BOTTOM_RIGHT  0x20
+static const uint8_t pixel_to_collision [14] [16] = {
+    { 0x05, 0x05, 0x07, 0x07, 0x07, 0x07, 0x03, 0x03,  0x03, 0x0b, 0x0b, 0x0b, 0x0b, 0x0a, 0x0a, 0x0a },
+    { 0x05, 0x05, 0x07, 0x07, 0x07, 0x07, 0x07, 0x03,  0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0a, 0x0a, 0x0a },
+    { 0x05, 0x05, 0x05, 0x07, 0x07, 0x07, 0x07, 0x03,  0x0b, 0x0b, 0x0b, 0x0b, 0x0a, 0x0a, 0x0a, 0x0a },
+    { 0x05, 0x05, 0x05, 0x05, 0x07, 0x07, 0x07, 0x03,  0x0b, 0x0b, 0x0b, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a },
+    { 0x05, 0x05, 0x05, 0x05, 0x05, 0x07, 0x07, 0x03,  0x0b, 0x0b, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a },
+    { 0x15, 0x15, 0x15, 0x15, 0x15, 0x05, 0x07, 0x03,  0x0b, 0x0a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a },
+    { 0x15, 0x15, 0x15, 0x15, 0x15, 0x15, 0x15, 0x00,  0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a },
+    { 0x15, 0x15, 0x15, 0x15, 0x15, 0x14, 0x34, 0x30,  0x38, 0x28, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a },
+    { 0x14, 0x14, 0x14, 0x14, 0x14, 0x34, 0x34, 0x30,  0x38, 0x38, 0x28, 0x28, 0x28, 0x28, 0x28, 0x28 },
+    { 0x14, 0x14, 0x14, 0x14, 0x34, 0x34, 0x34, 0x30,  0x38, 0x38, 0x38, 0x28, 0x28, 0x28, 0x28, 0x28 },
+    { 0x14, 0x14, 0x14, 0x34, 0x34, 0x34, 0x34, 0x30,  0x38, 0x38, 0x38, 0x38, 0x28, 0x28, 0x28, 0x28 },
+    { 0x14, 0x14, 0x34, 0x34, 0x34, 0x34, 0x34, 0x30,  0x38, 0x38, 0x38, 0x38, 0x38, 0x28, 0x28, 0x28 },
+    { 0x14, 0x14, 0x34, 0x34, 0x34, 0x34, 0x30, 0x30,  0x30, 0x38, 0x38, 0x38, 0x38, 0x28, 0x28, 0x28 },
+    { 0x14, 0x34, 0x34, 0x34, 0x34, 0x34, 0x30, 0x30,  0x30, 0x38, 0x38, 0x38, 0x38, 0x38, 0x28, 0x28 }
+};
+
+
+/* Pre-calculated gradients for each possible angle of the bubble launcher.
+ * Data is in 8.8 fixed-point, representing the distance travelled per frame. */
+typedef struct angle_s {
+    int16_t x;
+    int16_t y;
+} angle_t;
+
+angle_t angle_data [121] = {
+    { .x = 0xfb06, .y = 0xff81 }, { .x = 0xfb0a, .y = 0xff61 }, { .x = 0xfb0e, .y = 0xff42 }, { .x = 0xfb13, .y = 0xff23 },
+    { .x = 0xfb19, .y = 0xff05 }, { .x = 0xfb1f, .y = 0xfee6 }, { .x = 0xfb27, .y = 0xfec7 }, { .x = 0xfb2f, .y = 0xfea9 },
+    { .x = 0xfb38, .y = 0xfe8b }, { .x = 0xfb41, .y = 0xfe6d }, { .x = 0xfb4b, .y = 0xfe4f }, { .x = 0xfb56, .y = 0xfe32 },
+    { .x = 0xfb62, .y = 0xfe15 }, { .x = 0xfb6e, .y = 0xfdf8 }, { .x = 0xfb7c, .y = 0xfddb }, { .x = 0xfb89, .y = 0xfdbf },
+    { .x = 0xfb98, .y = 0xfda3 }, { .x = 0xfba7, .y = 0xfd88 }, { .x = 0xfbb7, .y = 0xfd6d }, { .x = 0xfbc7, .y = 0xfd52 },
+    { .x = 0xfbd8, .y = 0xfd38 }, { .x = 0xfbea, .y = 0xfd1e }, { .x = 0xfbfd, .y = 0xfd05 }, { .x = 0xfc10, .y = 0xfcec },
+    { .x = 0xfc23, .y = 0xfcd3 }, { .x = 0xfc38, .y = 0xfcbb }, { .x = 0xfc4c, .y = 0xfca4 }, { .x = 0xfc62, .y = 0xfc8d },
+    { .x = 0xfc78, .y = 0xfc76 }, { .x = 0xfc8e, .y = 0xfc60 }, { .x = 0xfca5, .y = 0xfc4b }, { .x = 0xfcbd, .y = 0xfc36 },
+    { .x = 0xfcd5, .y = 0xfc22 }, { .x = 0xfced, .y = 0xfc0e }, { .x = 0xfd06, .y = 0xfbfb }, { .x = 0xfd20, .y = 0xfbe9 },
+    { .x = 0xfd3a, .y = 0xfbd7 }, { .x = 0xfd54, .y = 0xfbc6 }, { .x = 0xfd6f, .y = 0xfbb6 }, { .x = 0xfd8a, .y = 0xfba6 },
+    { .x = 0xfda5, .y = 0xfb97 }, { .x = 0xfdc1, .y = 0xfb88 }, { .x = 0xfddd, .y = 0xfb7b }, { .x = 0xfdfa, .y = 0xfb6e },
+    { .x = 0xfe17, .y = 0xfb61 }, { .x = 0xfe34, .y = 0xfb56 }, { .x = 0xfe51, .y = 0xfb4b }, { .x = 0xfe6f, .y = 0xfb40 },
+    { .x = 0xfe8d, .y = 0xfb37 }, { .x = 0xfeab, .y = 0xfb2e }, { .x = 0xfec9, .y = 0xfb26 }, { .x = 0xfee8, .y = 0xfb1f },
+    { .x = 0xff07, .y = 0xfb19 }, { .x = 0xff25, .y = 0xfb13 }, { .x = 0xff44, .y = 0xfb0e }, { .x = 0xff63, .y = 0xfb0a },
+    { .x = 0xff83, .y = 0xfb06 }, { .x = 0xffa2, .y = 0xfb03 }, { .x = 0xffc1, .y = 0xfb02 }, { .x = 0xffe1, .y = 0xfb00 },
+    { .x = 0x0000, .y = 0xfb00 }, { .x = 0x001f, .y = 0xfb00 }, { .x = 0x003f, .y = 0xfb02 }, { .x = 0x005e, .y = 0xfb03 },
+    { .x = 0x007d, .y = 0xfb06 }, { .x = 0x009d, .y = 0xfb0a }, { .x = 0x00bc, .y = 0xfb0e }, { .x = 0x00db, .y = 0xfb13 },
+    { .x = 0x00f9, .y = 0xfb19 }, { .x = 0x0118, .y = 0xfb1f }, { .x = 0x0137, .y = 0xfb26 }, { .x = 0x0155, .y = 0xfb2e },
+    { .x = 0x0173, .y = 0xfb37 }, { .x = 0x0191, .y = 0xfb40 }, { .x = 0x01af, .y = 0xfb4b }, { .x = 0x01cc, .y = 0xfb56 },
+    { .x = 0x01e9, .y = 0xfb61 }, { .x = 0x0206, .y = 0xfb6e }, { .x = 0x0223, .y = 0xfb7b }, { .x = 0x023f, .y = 0xfb88 },
+    { .x = 0x025b, .y = 0xfb97 }, { .x = 0x0276, .y = 0xfba6 }, { .x = 0x0291, .y = 0xfbb6 }, { .x = 0x02ac, .y = 0xfbc6 },
+    { .x = 0x02c6, .y = 0xfbd7 }, { .x = 0x02e0, .y = 0xfbe9 }, { .x = 0x02fa, .y = 0xfbfb }, { .x = 0x0313, .y = 0xfc0e },
+    { .x = 0x032b, .y = 0xfc22 }, { .x = 0x0343, .y = 0xfc36 }, { .x = 0x035b, .y = 0xfc4b }, { .x = 0x0372, .y = 0xfc60 },
+    { .x = 0x0388, .y = 0xfc76 }, { .x = 0x039e, .y = 0xfc8d }, { .x = 0x03b4, .y = 0xfca4 }, { .x = 0x03c8, .y = 0xfcbb },
+    { .x = 0x03dd, .y = 0xfcd3 }, { .x = 0x03f0, .y = 0xfcec }, { .x = 0x0403, .y = 0xfd05 }, { .x = 0x0416, .y = 0xfd1e },
+    { .x = 0x0428, .y = 0xfd38 }, { .x = 0x0439, .y = 0xfd52 }, { .x = 0x0449, .y = 0xfd6d }, { .x = 0x0459, .y = 0xfd88 },
+    { .x = 0x0468, .y = 0xfda3 }, { .x = 0x0477, .y = 0xfdbf }, { .x = 0x0484, .y = 0xfddb }, { .x = 0x0492, .y = 0xfdf8 },
+    { .x = 0x049e, .y = 0xfe15 }, { .x = 0x04aa, .y = 0xfe32 }, { .x = 0x04b5, .y = 0xfe4f }, { .x = 0x04bf, .y = 0xfe6d },
+    { .x = 0x04c8, .y = 0xfe8b }, { .x = 0x04d1, .y = 0xfea9 }, { .x = 0x04d9, .y = 0xfec7 }, { .x = 0x04e1, .y = 0xfee6 },
+    { .x = 0x04e7, .y = 0xff05 }, { .x = 0x04ed, .y = 0xff23 }, { .x = 0x04f2, .y = 0xff42 }, { .x = 0x04f6, .y = 0xff61 },
+    { .x = 0x04fa, .y = 0xff81 }
+};
