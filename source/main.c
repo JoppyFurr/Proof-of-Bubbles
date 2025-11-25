@@ -29,12 +29,11 @@
 #include "../game_tile_data/palette.h"
 
 /* VRAM Locations */
-#define ACTIVE_BUBBLE_PATTERN   320
-#define PIP_PATTERN             324
-#define BLUE_TILE_PATTERN       325
-#define GRASS_PATTERN           326
-#define BORDER_PATTERN          332
-#define FALLING_BUBBLE_PATTERN  340
+#define BUBBLE_PATTERN          320
+#define PIP_PATTERN             336
+#define BLUE_TILE_PATTERN       337
+#define GRASS_PATTERN           338
+#define BORDER_PATTERN          346
 
 /* Global state */
 uint8_t cursor_x = 128;
@@ -133,13 +132,15 @@ static const uint32_t black_tile [32] = { 0xff0000ff, 0x000000ff, 0x000000ff, 0x
  */
 void draw_active_bubble (void)
 {
+    uint8_t pattern_index = BUBBLE_PATTERN + ((active_bubble_colour - 1) << 2);
+
     /* TODO: Union or pointer math to avoid the shifts */
     uint8_t x = active_bubble_x >> 8;
     uint8_t y = active_bubble_y >> 8;
-    SMS_addSprite (x,     y,     (uint8_t) (ACTIVE_BUBBLE_PATTERN + 0));
-    SMS_addSprite (x + 8, y,     (uint8_t) (ACTIVE_BUBBLE_PATTERN + 1));
-    SMS_addSprite (x,     y + 8, (uint8_t) (ACTIVE_BUBBLE_PATTERN + 2));
-    SMS_addSprite (x + 8, y + 8, (uint8_t) (ACTIVE_BUBBLE_PATTERN + 3));
+    SMS_addSprite (x,     y,     (uint8_t) (pattern_index    ));
+    SMS_addSprite (x + 8, y,     (uint8_t) (pattern_index + 1));
+    SMS_addSprite (x,     y + 8, (uint8_t) (pattern_index + 2));
+    SMS_addSprite (x + 8, y + 8, (uint8_t) (pattern_index + 3));
 }
 
 
@@ -409,21 +410,6 @@ void bubble_drop (uint8_t position)
 
     set_bubble (position, BUBBLE_NONE);
 
-    /* TODO: If the number of simultaneously falling bubbles >= the number of
-     *       bubble colours, just keep one of each loaded into vram. This would
-     *       be faster (less vram access), but would have an up-front vram cost.
-     *       This could however also share with the active bubble. */
-
-    /* Load sprite into VRAM */
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [drop_colour * BUBBLE_MAX] [0] << 3],
-                   FALLING_BUBBLE_PATTERN + 0, 32);
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [drop_colour * BUBBLE_MAX] [1] << 3],
-                   FALLING_BUBBLE_PATTERN + 1, 32);
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [drop_colour * BUBBLE_MAX] [2] << 3],
-                   FALLING_BUBBLE_PATTERN + 2, 32);
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [drop_colour * BUBBLE_MAX] [3] << 3],
-                   FALLING_BUBBLE_PATTERN + 3, 32);
-
     uint8_t x = game_board_x [position];
     uint8_t y = game_board_y [position];
 
@@ -431,6 +417,8 @@ void bubble_drop (uint8_t position)
 
     uint8_t velocity = 1;
     uint8_t frame = 0;
+
+    uint8_t pattern_index = BUBBLE_PATTERN + ((drop_colour - 1) << 2);
 
     while (y < 200)
     {
@@ -444,10 +432,10 @@ void bubble_drop (uint8_t position)
         y += velocity;
 
         SMS_initSprites ();
-        SMS_addSprite (x,     y,     (uint8_t) (FALLING_BUBBLE_PATTERN + 0));
-        SMS_addSprite (x + 8, y,     (uint8_t) (FALLING_BUBBLE_PATTERN + 1));
-        SMS_addSprite (x,     y + 8, (uint8_t) (FALLING_BUBBLE_PATTERN + 2));
-        SMS_addSprite (x + 8, y + 8, (uint8_t) (FALLING_BUBBLE_PATTERN + 3));
+        SMS_addSprite (x,     y,     (uint8_t) (pattern_index    ));
+        SMS_addSprite (x + 8, y,     (uint8_t) (pattern_index + 1));
+        SMS_addSprite (x,     y + 8, (uint8_t) (pattern_index + 2));
+        SMS_addSprite (x + 8, y + 8, (uint8_t) (pattern_index + 3));
         SMS_copySpritestoSAT ();
 
         SMS_waitForVBlank ();
@@ -537,16 +525,6 @@ void load_next_bubble (void)
     {
         active_bubble_colour = BUBBLE_CYAN;
     }
-
-    /* Load sprite into VRAM */
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble_colour * BUBBLE_MAX] [0] << 3],
-                   ACTIVE_BUBBLE_PATTERN + 0, 32);
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble_colour * BUBBLE_MAX] [1] << 3],
-                   ACTIVE_BUBBLE_PATTERN + 1, 32);
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble_colour * BUBBLE_MAX] [2] << 3],
-                   ACTIVE_BUBBLE_PATTERN + 2, 32);
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [active_bubble_colour * BUBBLE_MAX] [3] << 3],
-                   ACTIVE_BUBBLE_PATTERN + 3, 32);
 
     state = BUBBLE_READY;
 }
@@ -714,26 +692,27 @@ void main (void)
         UNSAFE_SMS_load1Tile (blue_tile, i);
     }
 
-    /* Patterns 320-323: Active bubble (sprite) */
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [0] << 3], 320, 32);
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [1] << 3], 321, 32);
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [2] << 3], 322, 32);
-    SMS_loadTiles (&bubbles_patterns [bubbles_panels [BUBBLE_CYAN * BUBBLE_MAX] [3] << 3], 323, 32);
+    /* Bubbles as sprites */
+    for (uint8_t i = 0; i < 4; i++)
+    {
+        const bubble_t bubble_type [4] = { BUBBLE_CYAN, BUBBLE_RED, BUBBLE_GREEN, BUBBLE_YELLOW };
+        SMS_loadTiles (&bubbles_patterns [bubbles_panels [bubble_type [i] * BUBBLE_MAX] [0] << 3], BUBBLE_PATTERN + (i << 2)    , 32);
+        SMS_loadTiles (&bubbles_patterns [bubbles_panels [bubble_type [i] * BUBBLE_MAX] [1] << 3], BUBBLE_PATTERN + (i << 2) + 1, 32);
+        SMS_loadTiles (&bubbles_patterns [bubbles_panels [bubble_type [i] * BUBBLE_MAX] [2] << 3], BUBBLE_PATTERN + (i << 2) + 2, 32);
+        SMS_loadTiles (&bubbles_patterns [bubbles_panels [bubble_type [i] * BUBBLE_MAX] [3] << 3], BUBBLE_PATTERN + (i << 2) + 3, 32);
+    }
 
-    /* Pattern 324: Indicator pip */
+    /* Indicator pip */
     SMS_loadTiles (pip_patterns, PIP_PATTERN, sizeof (pip_patterns));
 
-    /* Patterns 325: Blue tile */
+    /* Plain blue pattern */
     SMS_loadTiles (blue_tile, BLUE_TILE_PATTERN, sizeof (blue_tile));
 
-    /* Patterns 326-331: Grass */
+    /* Grass patterns */
     SMS_loadTiles (grass_patterns, GRASS_PATTERN, sizeof (grass_patterns));
 
-    /* Patterns 332-339: Border */
+    /* Border patterns */
     SMS_loadTiles (border_patterns, BORDER_PATTERN, sizeof (border_patterns));
-
-    /* Patterns 340-347 Falling Bubbles (sprites),
-     * For now, two of them. */
 
     /* Tile-map: Background and border around game board */
     for (uint8_t y = 0; y < 24; y++)
