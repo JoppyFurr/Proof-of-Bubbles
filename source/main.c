@@ -402,45 +402,95 @@ bool active_bubble_try_pop (void)
 
 
 /*
- * Drop a bubble off the bottom of the screen.
+ * Update the positions of currently falling bubbles.
  */
-void bubble_drop (uint8_t position)
+uint8_t fall_queue [64];
+uint8_t fall_queue_head = 0;
+uint8_t fall_queue_tail = 0;
+
+typedef struct falling_bubble_s {
+    uint8_t pattern;
+    uint8_t x;
+    uint8_t y;
+    uint8_t velocity;
+    uint8_t frame;
+} falling_bubble_t;
+
+falling_bubble_t currently_falling [4];
+
+uint8_t currently_falling_count = 0;
+uint8_t currently_falling_head = 0;
+uint8_t currently_falling_tail = 0;
+
+uint8_t last_drop_began = 0;
+
+static void draw_fallers (void)
 {
-    bubble_t drop_colour = game_board [position];
-
-    set_bubble (position, BUBBLE_NONE);
-
-    uint8_t x = game_board_x [position];
-    uint8_t y = game_board_y [position];
-
-    /* TODO: Don't wait for vblank here, update drop progress in the main loop. */
-
-    uint8_t velocity = 1;
-    uint8_t frame = 0;
-
-    uint8_t pattern_index = BUBBLE_PATTERN + ((drop_colour - 1) << 2);
-
-    while (y < 200)
+    /* To avoid too many sprites on the same line, only begin a
+     * drop if 8 frames have passed since the previous drop began. */
+    if (last_drop_began < 8)
     {
-        /* Accelerate every five frames */
-        if (frame == 5)
-        {
-            frame = 0;
-            velocity += 1;
-        }
-
-        y += velocity;
-
-        SMS_initSprites ();
-        SMS_addSprite (x,     y,     (uint8_t) (pattern_index    ));
-        SMS_addSprite (x + 8, y,     (uint8_t) (pattern_index + 1));
-        SMS_addSprite (x,     y + 8, (uint8_t) (pattern_index + 2));
-        SMS_addSprite (x + 8, y + 8, (uint8_t) (pattern_index + 3));
-        SMS_copySpritestoSAT ();
-
-        SMS_waitForVBlank ();
-        frame += 1;
+        last_drop_began++;
     }
+
+    /* Note: Because the bottom row falls first & accelerates, it's done first.
+     *       So, a ring may be the way to implement the currently-falling list.
+     *       With a power-of-2 size, the modulus is just &. */
+
+    /* If we're not at the limit of simultaneously falling bubbles, and there
+     * are more waiting to fall, take one from the queue. */
+    if (last_drop_began >= 8 && currently_falling_count < 4 && fall_queue_head != fall_queue_tail)
+    {
+        /* add a bubble from the fall-queue into currently-falling */
+        uint8_t position = fall_queue [fall_queue_head++ & 0x3f];
+        bubble_t type = game_board [position];
+        falling_bubble_t *new = &currently_falling [currently_falling_tail++ & 0x03];
+
+        new->pattern = BUBBLE_PATTERN + ((type - 1) << 2);
+        new->x = game_board_x [position];
+        new->y = game_board_y [position];
+        new->velocity = 1;
+        new->frame = 0;
+
+        set_bubble (position, BUBBLE_NONE);
+        currently_falling_count += 1;
+        last_drop_began = 0;
+    }
+
+
+    uint8_t completed = 0;
+    for (uint8_t i = currently_falling_head; i != currently_falling_tail; i++)
+    {
+        falling_bubble_t *bubble = &currently_falling [i & 0x03];
+
+        /* Accelerate every five frames */
+        if (bubble->frame == 5)
+        {
+            bubble->velocity += 1;
+            bubble->frame = 0;
+        }
+        bubble->y += bubble->velocity;
+        bubble->frame += 1;
+
+        /* If the bubble is still on-screen */
+        if (bubble->y < 200)
+        {
+            SMS_addSprite (bubble->x,     bubble->y,     (uint8_t) (bubble->pattern    ));
+            SMS_addSprite (bubble->x + 8, bubble->y,     (uint8_t) (bubble->pattern + 1));
+            SMS_addSprite (bubble->x,     bubble->y + 8, (uint8_t) (bubble->pattern + 2));
+            SMS_addSprite (bubble->x + 8, bubble->y + 8, (uint8_t) (bubble->pattern + 3));
+        }
+        else
+        {
+            /* Remove from the currently-falling list */
+            currently_falling_head += 1;
+            currently_falling_count -= 1;
+        }
+    }
+
+    currently_falling_head += completed;
+    currently_falling_count -= completed;
+
 }
 
 
@@ -497,14 +547,11 @@ void floating_bubble_check (void)
     }
 
     /* Clear each of the unconnected bubbles */
-    /* TODO: In the original game, one bubble begins falling per frame,
-     *       meaning many are falling at once. During this many-falling
-     *       animation, the player can already launch the next bubble.. */
     for (uint8_t i = 102; i >= 10; i--)
     {
         if (game_board [i] != BUBBLE_NONE && float_map [i] != FLOAT_CONNECTED)
         {
-            bubble_drop (i);
+            fall_queue [fall_queue_tail++ & 0x3f] = i;
         }
     }
 }
@@ -670,6 +717,7 @@ void play_level (void)
         SMS_initSprites ();
         draw_active_bubble ();
         draw_pip ();
+        draw_fallers ();
         SMS_copySpritestoSAT ();
     }
 }
