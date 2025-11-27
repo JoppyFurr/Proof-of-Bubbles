@@ -35,18 +35,14 @@
 #define GRASS_PATTERN           338
 #define BORDER_PATTERN          346
 
-/* Global state */
-uint8_t cursor_x = 128;
-uint8_t cursor_y = 96;
-
-#define LAUNCHER_AIM_MIN      0
-#define LAUNCHER_AIM_CENTRE  60
-#define LAUNCHER_AIM_MAX    120
+#define LAUNCHER_AIM_MIN          0
+#define LAUNCHER_AIM_CENTRE      60
+#define LAUNCHER_AIM_MAX        120
 
 /* Coordinates in 8.8 fixed-point format */
-#define LEFT_EDGE        0x4000
-#define RIGHT_EDGE       0xb000
-#define LAUNCH_FROM_X    0x7800
+#define LEFT_EDGE        0x2800
+#define RIGHT_EDGE       0x9800
+#define LAUNCH_FROM_X    0x6000
 #define LAUNCH_FROM_Y    0x9a00
 
 typedef enum bubble_e {
@@ -150,7 +146,7 @@ void draw_active_bubble (void)
  */
 void draw_pip (void)
 {
-    uint8_t pip_x = 127 + (angle_data [launcher_aim].x >> 6);
+    uint8_t pip_x = 103 + (angle_data [launcher_aim].x >> 6);
     uint8_t pip_y = 161 + (angle_data [launcher_aim].y >> 6);
     SMS_addSprite (pip_x, pip_y, (uint8_t) (PIP_PATTERN));
 }
@@ -224,7 +220,7 @@ bool active_bubble_collision (void)
     }
 
     /* Get the bubble-centre coordinate within a two-row block */
-    uint8_t pos_x =      ((active_bubble_x >> 8) + 7 - 64);
+    uint8_t pos_x =      ((active_bubble_x >> 8) + 7 - 40);
     uint8_t pos_y =      ((active_bubble_y >> 8) + 7 - 9) % 28;
 
     /* Get which two-row block the bubble is in */
@@ -309,7 +305,7 @@ void active_bubble_calculate_board_position (void)
 {
     /* Get the bubble-centre coordinate within a two-row block */
     /* Add an extra +1 to the x position to bias towards rolling right. */
-    uint8_t pos_x =      ((active_bubble_x >> 8) + 7 + 1 - 64);
+    uint8_t pos_x =      ((active_bubble_x >> 8) + 7 + 1 - 40);
     uint8_t pos_y =      ((active_bubble_y >> 8) + 7 - 9) % 28;
 
     /* Get which two-row block the bubble is in */
@@ -702,12 +698,12 @@ void play_level (void)
                 /* TODO: Tune the subpixel value to give the half-pixel at the edge like the PS1 version has */
                 if (active_bubble_x < LEFT_EDGE)
                 {
-                    active_bubble_x = 0x8000 - active_bubble_x;
+                    active_bubble_x = 0x5000 - active_bubble_x;
                     active_bubble_velocity_x = -active_bubble_velocity_x;
                 }
                 else if (active_bubble_x > RIGHT_EDGE)
                 {
-                    active_bubble_x = 0x6000 - active_bubble_x;
+                    active_bubble_x = 0x3000 - active_bubble_x;
                     active_bubble_velocity_x = -active_bubble_velocity_x;
                 }
             }
@@ -776,18 +772,18 @@ void main (void)
         /* Wood-texture border */
         if (y == 0) /* First line */
         {
-            row [7] = BORDER_PATTERN + 0;
-            for (uint8_t x = 8; x < 24; x++)
+            row [4] = BORDER_PATTERN + 0;
+            for (uint8_t x = 5; x < 21; x++)
             {
                 row [x] = BORDER_PATTERN + 1;
             }
-            row [24] = BORDER_PATTERN + 2;
+            row [21] = BORDER_PATTERN + 2;
         }
         else if (y < 22) /* Middle */
         {
-            row [7] = BORDER_PATTERN + 3;
-            row [24] = BORDER_PATTERN + 5;
-            for (uint8_t x = 8; x < 24; x++)
+            row [4] = BORDER_PATTERN + 3;
+            row [21] = BORDER_PATTERN + 5;
+            for (uint8_t x = 5; x < 21; x++)
             {
                 /* Trying a lighter blue in the game-board, using the sprite
                  * palette. Doesn't reach all the way to the grass though..
@@ -806,12 +802,12 @@ void main (void)
             }
             /* While trying out a lighter blue within the game-board area,
              * special light-blue-sky grass tiles are needed to match. */
-            for (uint8_t x = 8; x < 24; x++)
+            for (uint8_t x = 5; x < 21; x++)
             {
                 row [x] += 4;
             }
-            row [7] = BORDER_PATTERN + 6;
-            row [24] = BORDER_PATTERN + 7;
+            row [4] = BORDER_PATTERN + 6;
+            row [21] = BORDER_PATTERN + 7;
         }
         else if (y == 23) /* Grass row 2 */
         {
@@ -843,7 +839,7 @@ void main (void)
 
             pattern_index += 1;
         }
-        SMS_loadTileMapArea (8 + strip, 1, strip_map, 1, 20);
+        SMS_loadTileMapArea (5 + strip, 1, strip_map, 1, 20);
     }
 
     SMS_displayOn ();
