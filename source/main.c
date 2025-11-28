@@ -21,25 +21,14 @@
 
 #include "SMSlib.h"
 
+#include "vram.h"
 #include "data.h"
+#include "text.h"
 
 #define TARGET_SMS
 #include "../game_tile_data/patterns.h"
 #include "../game_tile_data/pattern_index.h"
 #include "../game_tile_data/palette.h"
-
-/* VRAM Locations */
-#define BUBBLE_PATTERN          320
-#define PIP_PATTERN             336
-#define BLUE_TILE_PATTERN       337
-#define GRASS_PATTERN           338
-#define BORDER_PATTERN          346
-#define TEXT_ROUND_PATTERN      354
-#define TEXT_TIME_PATTERN       364
-#define TEXT_BEST_PATTERN       372
-#define TEXT_SYMBOLS_PATTERN    380
-#define ROUND_DIGITS_PATTERN    383
-#define DIGITS_PATTERN          387
 
 #define LAUNCHER_AIM_MIN          0
 #define LAUNCHER_AIM_CENTRE      60
@@ -829,17 +818,6 @@ void main (void)
     /* UI Text */
     uint16_t text_buf [16];
 
-    /* Round */
-    for (uint8_t i = 0; i < 5; i++)
-    {
-        SMS_loadTiles (&text_patterns [text_panels [i + 26] [0] << 3], TEXT_ROUND_PATTERN + i,     32);
-        SMS_loadTiles (&text_patterns [text_panels [i + 26] [1] << 3], TEXT_ROUND_PATTERN + i + 5, 32);
-
-        text_buf [i    ] = TEXT_ROUND_PATTERN + i;
-        text_buf [i + 5] = TEXT_ROUND_PATTERN + i + 5;
-    }
-    SMS_loadTileMapArea (23, 5, text_buf, 5, 2);
-
     /* Time */
     for (uint8_t i = 0; i < 4; i++)
     {
@@ -876,13 +854,6 @@ void main (void)
     SMS_loadTileMapArea (28, 11, text_buf, 1, 1);
     SMS_loadTileMapArea (28, 16, text_buf, 1, 1);
 
-    /* Round digits */
-    SMS_loadTiles (&text_patterns [text_panels [14] [0] << 3], ROUND_DIGITS_PATTERN + 1, 32);
-    SMS_loadTiles (&text_patterns [text_panels [14] [1] << 3], ROUND_DIGITS_PATTERN + 3, 32);
-    text_buf [0] = ROUND_DIGITS_PATTERN + 1;
-    text_buf [1] = ROUND_DIGITS_PATTERN + 3;
-    SMS_loadTileMapArea (30, 5, text_buf, 1, 2);
-
     /* Digits */
     for (uint8_t i = 0; i < 10; i++)
     {
@@ -907,6 +878,10 @@ void main (void)
     text_buf [3] = DIGITS_PATTERN + 10;
     SMS_loadTileMapArea (26, 16, text_buf, 2, 2);
     SMS_loadTileMapArea (29, 16, text_buf, 2, 2);
+
+    /* Text */
+    text_load_patterns ();
+    text_draw_round (1);
 
     /* Tile-map: Game board strips
      *
