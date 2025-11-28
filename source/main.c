@@ -815,73 +815,11 @@ void main (void)
         SMS_loadTileMapArea (0, y, row, 32, 1);
     }
 
-    /* UI Text */
-    uint16_t text_buf [16];
-
-    /* Time */
-    for (uint8_t i = 0; i < 4; i++)
-    {
-        SMS_loadTiles (&text_patterns [text_panels [i + 31] [0] << 3], TEXT_TIME_PATTERN + i,     32);
-        SMS_loadTiles (&text_patterns [text_panels [i + 31] [1] << 3], TEXT_TIME_PATTERN + i + 4, 32);
-
-        text_buf [i    ] = TEXT_TIME_PATTERN + i;
-        text_buf [i + 4] = TEXT_TIME_PATTERN + i + 4;
-    }
-    SMS_loadTileMapArea (23, 9, text_buf, 4, 2);
-
-    /* Best */
-    for (uint8_t i = 0; i < 4; i++)
-    {
-        SMS_loadTiles (&text_patterns [text_panels [i + 35] [0] << 3], TEXT_BEST_PATTERN + i,     32);
-        SMS_loadTiles (&text_patterns [text_panels [i + 35] [1] << 3], TEXT_BEST_PATTERN + i + 4, 32);
-
-        text_buf [i    ] = TEXT_BEST_PATTERN + i;
-        text_buf [i + 4] = TEXT_BEST_PATTERN + i + 4;
-    }
-    SMS_loadTileMapArea (23, 14, text_buf, 4, 2);
-
-    /* Symbols */
-    for (uint8_t i = 0; i < 2; i++)
-    {
-        SMS_loadTiles (&text_patterns [text_panels [i + 10] [0] << 3], TEXT_SYMBOLS_PATTERN + i,     32);
-        SMS_loadTiles (&text_patterns [text_panels [i + 10] [1] << 3], TEXT_SYMBOLS_PATTERN + i + 2, 32);
-    }
-    text_buf [0] = TEXT_SYMBOLS_PATTERN;
-    text_buf [1] = TEXT_SYMBOLS_PATTERN + 2;
-    SMS_loadTileMapArea (25, 11, text_buf, 1, 2);
-    SMS_loadTileMapArea (25, 16, text_buf, 1, 2);
-    text_buf [0] = TEXT_SYMBOLS_PATTERN + 1;
-    SMS_loadTileMapArea (28, 11, text_buf, 1, 1);
-    SMS_loadTileMapArea (28, 16, text_buf, 1, 1);
-
-    /* Digits */
-    for (uint8_t i = 0; i < 10; i++)
-    {
-        SMS_loadTiles (&text_patterns [text_panels [i] [0] << 3], DIGITS_PATTERN + i,      32);
-        SMS_loadTiles (&text_patterns [text_panels [i] [1] << 3], DIGITS_PATTERN + i + 10, 32);
-    }
-
-    /* Time digits, hard-coded all zeros for now */
-    text_buf [0] = DIGITS_PATTERN;
-    text_buf [1] = DIGITS_PATTERN;
-    text_buf [2] = DIGITS_PATTERN + 10;
-    text_buf [3] = DIGITS_PATTERN + 10;
-    SMS_loadTileMapArea (23, 11, text_buf, 2, 2);
-    SMS_loadTileMapArea (26, 11, text_buf, 2, 2);
-    SMS_loadTileMapArea (29, 11, text_buf, 2, 2);
-
-    /* Best digits, hard-coded two minutes for now */
-    text_buf [1] = DIGITS_PATTERN + 2;
-    text_buf [3] = DIGITS_PATTERN + 12;
-    SMS_loadTileMapArea (23, 16, text_buf, 2, 2);
-    text_buf [1] = DIGITS_PATTERN;
-    text_buf [3] = DIGITS_PATTERN + 10;
-    SMS_loadTileMapArea (26, 16, text_buf, 2, 2);
-    SMS_loadTileMapArea (29, 16, text_buf, 2, 2);
-
     /* Text */
     text_load_patterns ();
     text_draw_round (1);
+    text_draw_time ();
+    text_draw_best ();
 
     /* Tile-map: Game board strips
      *

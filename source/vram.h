@@ -14,7 +14,7 @@
 #define TEXT_ROUND_PATTERN      354
 #define TEXT_TIME_PATTERN       364
 #define TEXT_BEST_PATTERN       372
-#define TEXT_SYMBOLS_PATTERN    380
+#define SYMBOLS_PATTERN         380
 #define ROUND_DIGITS_PATTERN    383
 #define DIGITS_PATTERN          387
 
