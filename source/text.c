@@ -14,6 +14,56 @@
 extern const uint32_t text_patterns [];
 extern const uint16_t text_panels [39] [2];
 
+extern uint8_t time_minutes;
+extern uint8_t time_seconds;
+extern uint8_t time_frames;
+
+/* Modulus and division are slow, so lets try a look-up table
+ * to get the ones and tens digits when updating the timer */
+
+static const uint8_t int_to_ones [100] = {
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+};
+
+static const uint8_t int_to_tens [100] = {
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+    3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+    4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+    6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+    7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+    8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+    9, 9, 9, 9, 9, 9, 9, 9, 9, 9
+};
+
+/* TODO: Assumes 60Hz timing */
+static const uint8_t frame_to_centiseconds_ones [60] = {
+    0, 1, 3, 5, 6, 8,   0, 1, 3, 5, 6, 8,
+    0, 1, 3, 5, 6, 8,   0, 1, 3, 5, 6, 8,
+    0, 1, 3, 5, 6, 8,   0, 1, 3, 5, 6, 8,
+    0, 1, 3, 5, 6, 8,   0, 1, 3, 5, 6, 8,
+    0, 1, 3, 5, 6, 8,   0, 1, 3, 5, 6, 8
+};
+
+static const uint8_t frame_to_centiseconds_tens [60] = {
+    0, 0, 0, 0, 0, 0,   1, 1, 1, 1, 1, 1,
+    2, 2, 2, 2, 2, 2,   3, 3, 3, 3, 3, 3,
+    4, 4, 4, 4, 4, 4,   5, 5, 5, 5, 5, 5,
+    6, 6, 6, 6, 6, 6,   7, 7, 7, 7, 7, 7,
+    8, 8, 8, 8, 8, 8,   9, 9, 9, 9, 9, 9
+};
+
 
 /*
  * Load patterns used for text drawing.
@@ -62,8 +112,8 @@ void text_load_patterns (void)
  */
 void text_draw_round (uint8_t round)
 {
-    const uint8_t ones = round % 10;
-    const uint8_t tens = round / 10;
+    const uint8_t ones = int_to_ones [round];
+    const uint8_t tens = int_to_tens [round];
 
     /* "ROUND" label - TODO: Usually won't need to be updated. */
     uint16_t label_buf [10] = {
@@ -96,6 +146,72 @@ void text_draw_round (uint8_t round)
     digit_buf [2] = ROUND_DIGITS_PATTERN + 1;
     digit_buf [3] = ROUND_DIGITS_PATTERN + 3;
     SMS_loadTileMapArea (29, 5, digit_buf, 2, 2);
+}
+
+
+/*
+ * Update the time indicator
+ * Calling this function both increments the time and updates the display.
+ */
+void text_update_time (void)
+{
+    uint16_t value_buf [4];
+    time_frames += 1;
+
+    if (time_frames < 60)
+    {
+        /* Update centiseconds digits */
+        value_buf [0] = DIGITS_PATTERN + frame_to_centiseconds_tens [time_frames];
+        value_buf [1] = DIGITS_PATTERN + frame_to_centiseconds_ones [time_frames];
+        value_buf [2] = DIGITS_PATTERN + frame_to_centiseconds_tens [time_frames] + 10;
+        value_buf [3] = DIGITS_PATTERN + frame_to_centiseconds_ones [time_frames] + 10;
+        SMS_loadTileMapArea (29, 11, value_buf, 2, 2);
+    }
+    else
+    {
+        /* Reset centiseconds to zero and update seconds */
+        time_frames = 0;
+        value_buf [0] = DIGITS_PATTERN;
+        value_buf [1] = DIGITS_PATTERN;
+        value_buf [2] = DIGITS_PATTERN + 10;
+        value_buf [3] = DIGITS_PATTERN + 10;
+        SMS_loadTileMapArea (29, 11, value_buf, 2, 2);
+
+        time_seconds += 1;
+
+        if (time_seconds < 60)
+        {
+            /* Update seconds digits */
+            value_buf [0] = DIGITS_PATTERN + int_to_tens [time_seconds];
+            value_buf [1] = DIGITS_PATTERN + int_to_ones [time_seconds];
+            value_buf [2] = DIGITS_PATTERN + int_to_tens [time_seconds] + 10;
+            value_buf [3] = DIGITS_PATTERN + int_to_ones [time_seconds] + 10;
+            SMS_loadTileMapArea (26, 11, value_buf, 2, 2);
+        }
+        else
+        {
+            /* Reset seconds to zero and update minutes */
+            time_seconds = 0;
+            value_buf [0] = DIGITS_PATTERN;
+            value_buf [1] = DIGITS_PATTERN;
+            value_buf [2] = DIGITS_PATTERN + 10;
+            value_buf [3] = DIGITS_PATTERN + 10;
+            SMS_loadTileMapArea (26, 11, value_buf, 2, 2);
+
+            /* Only tick over to the next minute if there's room */
+            if (time_minutes < 99)
+            {
+                time_minutes += 1;
+
+                /* Update seconds digits */
+                value_buf [0] = DIGITS_PATTERN + int_to_tens [time_minutes];
+                value_buf [1] = DIGITS_PATTERN + int_to_ones [time_minutes];
+                value_buf [2] = DIGITS_PATTERN + int_to_tens [time_minutes] + 10;
+                value_buf [3] = DIGITS_PATTERN + int_to_ones [time_minutes] + 10;
+                SMS_loadTileMapArea (23, 11, value_buf, 2, 2);
+            }
+        }
+    }
 }
 
 

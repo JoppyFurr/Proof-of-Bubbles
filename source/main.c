@@ -64,13 +64,16 @@ static uint16_t active_bubble_x = LAUNCH_FROM_X;
 static uint16_t active_bubble_y = LAUNCH_FROM_Y;
 static uint8_t active_bubble_board_position = 0;
 
-
 typedef enum game_state_e {
     BUBBLE_READY = 0,
     BUBBLE_MOVING
 } game_state_t;
 
 game_state_t state = BUBBLE_READY;
+
+uint8_t time_minutes = 0;
+uint8_t time_seconds = 0;
+uint8_t time_frames = 0;
 
 #define BOARD_ROWS 11
 #define BOARD_COLS 8
@@ -709,6 +712,7 @@ void play_level (void)
         draw_active_bubble ();
         draw_pip ();
         draw_fallers ();
+        text_update_time ();
         SMS_copySpritestoSAT ();
     }
 }
