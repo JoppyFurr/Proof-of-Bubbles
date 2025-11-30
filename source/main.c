@@ -42,6 +42,10 @@ typedef enum bubble_e {
     BUBBLE_RED,
     BUBBLE_GREEN,
     BUBBLE_YELLOW,
+    BUBBLE_PURPLE,
+    BUBBLE_ORANGE,
+    BUBBLE_BLACK,
+    BUBBLE_WHITE,
     BUBBLE_MAX
 } bubble_t;
 
@@ -828,9 +832,10 @@ void main (void)
     }
 
     /* Bubbles as sprites */
-    for (uint8_t i = 0; i < 4; i++)
+    for (uint8_t i = 0; i < 8; i++)
     {
-        const bubble_t bubble_type [4] = { BUBBLE_CYAN, BUBBLE_RED, BUBBLE_GREEN, BUBBLE_YELLOW };
+        const bubble_t bubble_type [8] = { BUBBLE_CYAN, BUBBLE_RED, BUBBLE_GREEN, BUBBLE_YELLOW,
+                                           BUBBLE_PURPLE, BUBBLE_ORANGE, BUBBLE_BLACK, BUBBLE_WHITE };
         SMS_loadTiles (&bubbles_patterns [bubbles_panels [bubble_type [i] * BUBBLE_MAX] [0] << 3], BUBBLE_PATTERN + (i << 2)    , 32);
         SMS_loadTiles (&bubbles_patterns [bubbles_panels [bubble_type [i] * BUBBLE_MAX] [1] << 3], BUBBLE_PATTERN + (i << 2) + 1, 32);
         SMS_loadTiles (&bubbles_patterns [bubbles_panels [bubble_type [i] * BUBBLE_MAX] [2] << 3], BUBBLE_PATTERN + (i << 2) + 2, 32);
