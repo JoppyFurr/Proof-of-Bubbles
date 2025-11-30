@@ -42,6 +42,7 @@ build_bubbles_for_master_system ()
             --sprite-palette ${GAME_SPRITE_PALETTE} \
             --background-palette ${GAME_BACKGROUND_PALETTE} \
             --background tiles/border.png \
+            --panels 2x2,25 tiles/bubbles_grey.png \
             --panels 2x2,25 tiles/bubbles.png \
             --background tiles/grass.png \
             tiles/pip.png \

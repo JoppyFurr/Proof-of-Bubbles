@@ -6,11 +6,7 @@
  *  - Seed rand from R, generate random bubbles.
  *  - Save & restore rand seed.
  *  - Draw the launcher arrow
- *  - Un-crossable line at the bottom of the game-board
- *  - Wash of gray upon crossing the line
- *  - Pop groups of matching bubbles
- *  - Falling animation for dropped bubbles
- *  - Timer & high-score table
+ *  - High-score table
  *  - Colourblind mode
  *  - Shaking & dropping
  *  - Music
@@ -128,7 +124,7 @@ void draw_active_bubble (void)
 {
     uint8_t pattern_index = BUBBLE_PATTERN + ((active_bubble_colour - 1) << 2);
 
-    /* TODO: Union or pointer math to avoid the shifts */
+    /* TODO: Union or pointer maths to avoid the shifts */
     uint8_t x = active_bubble_x >> 8;
     uint8_t y = active_bubble_y >> 8;
     SMS_addSprite (x,     y,     (uint8_t) (pattern_index    ));
@@ -202,6 +198,84 @@ void set_bubble (uint8_t position, bubble_t bubble)
     /* Right strip */
     SMS_VRAMmemcpy (right_strip,      &bubbles_patterns [bubbles_panels [bubble * BUBBLE_MAX + neigh_tr] [1] << 3], 32);
     SMS_VRAMmemcpy (right_strip + 32, &bubbles_patterns [bubbles_panels [bubble * BUBBLE_MAX + neigh_br] [3] << 3], 32);
+}
+
+
+/*
+ * Convert a half-bubble to grey.
+ */
+void set_halfbubble_grey (uint8_t position, bool top_half)
+{
+    bubble_t bubble = game_board [position];
+
+    if (bubble == BUBBLE_NONE)
+    {
+        return;
+    }
+
+    uint8_t col = (position - 10) % 19;
+    uint8_t row = (position - 10) / 19 * 2;
+
+    uint16_t left_strip;
+    uint16_t right_strip;
+
+    /* TODO: Macro or lookup-table rather than duplicating the maths? */
+    /* Odd rows are offset by one strip */
+    if (col > 8)
+    {
+        col -= NEIGH_BOTTOM_RIGHT;
+        row += 1;
+        left_strip = ((col << 1) + 1) * BYTES_PER_STRIP + row * BYTES_PER_ROW;
+    }
+    else
+    {
+        left_strip = (col << 1) * BYTES_PER_STRIP + row * BYTES_PER_ROW;
+    }
+    right_strip = left_strip + BYTES_PER_STRIP;
+
+    if (top_half)
+    {
+        bubble_t neigh_tl = game_board [position + NEIGH_TOP_LEFT];
+        bubble_t neigh_tr = game_board [position + NEIGH_TOP_RIGHT];
+
+        SMS_VRAMmemcpy (left_strip,       &bubbles_grey_patterns [bubbles_grey_panels [bubble * BUBBLE_MAX + neigh_tl] [0] << 3], 32);
+        SMS_VRAMmemcpy (right_strip,      &bubbles_grey_patterns [bubbles_grey_panels [bubble * BUBBLE_MAX + neigh_tr] [1] << 3], 32);
+    }
+    else
+    {
+        bubble_t neigh_bl = game_board [position + NEIGH_BOTTOM_LEFT];
+        bubble_t neigh_br = game_board [position + NEIGH_BOTTOM_RIGHT];
+        SMS_VRAMmemcpy (left_strip  + 32, &bubbles_grey_patterns [bubbles_grey_panels [bubble * BUBBLE_MAX + neigh_bl] [2] << 3], 32);
+        SMS_VRAMmemcpy (right_strip + 32, &bubbles_grey_patterns [bubbles_grey_panels [bubble * BUBBLE_MAX + neigh_br] [3] << 3], 32);
+    }
+}
+
+
+/*
+ * Upon crossing the line, convert all bubbles to grey.
+ * TODO: Find out if the launcher arrow remain responsive during this.
+ */
+void wash_bubbles_grey (void)
+{
+    /* TODO: Consider moving this to data.h and using elsewhere to simplify maths. */
+    uint8_t row_start [11] = { 10, 20, 29, 39, 48, 58, 67, 77, 86, 96, 105 };
+
+    for (uint8_t half_row = 21; half_row != 0xff; half_row--)
+    {
+        uint8_t row = half_row >> 1;
+        bool top_half = ~half_row & 0x01;
+
+        uint8_t row_length = (row & 0x01) ? 7 : 8;
+
+        /* For now this function is blocking until the sweep ends.
+         * Update one line per every couple of frames. */
+        SMS_waitForVBlank ();
+        SMS_waitForVBlank ();
+        for (uint8_t i = 0; i < row_length; i++)
+        {
+            set_halfbubble_grey (row_start [row] + i, top_half);
+        }
+    }
 }
 
 
@@ -580,6 +654,12 @@ void play_level (void)
     /* Clear the game board */
     memset (game_board, BUBBLE_NONE, sizeof (game_board));
 
+    /* Reset the timer */
+    text_draw_time ();
+    time_minutes = 0;
+    time_seconds = 0;
+    time_frames = 0;
+
     /* TODO: Hide the clearing of the board. Eg, use an all-blue sprite
      *       palette or update the name-table to show all-blank tiles. */
     for (uint16_t i = 0; i < 320; i++)
@@ -680,7 +760,19 @@ void play_level (void)
                     if (active_bubble_board_position >= 105)
                     {
                         /* A bubble crossed the line, end the round. */
-                        return;
+                        /* TODO: Check with the PS1 game, what's left in the launcher?
+                         * Nothing, a coloured bubble, or a grey bubble? */
+                        wash_bubbles_grey ();
+
+                        /* Wait for a button press then exit this attempt at the round. */
+                        while (true)
+                        {
+                            key_pressed = SMS_getKeysPressed ();
+                            if (key_pressed & (PORT_A_KEY_1 | PORT_A_KEY_2))
+                            {
+                                return;
+                            }
+                        }
                     }
                 }
 
@@ -692,7 +784,7 @@ void play_level (void)
                 active_bubble_y += active_bubble_velocity_y;
 
                 /* Bounce off the walls.
-                 * Note, math is simplified and uses modulo 16-bit*/
+                 * Note, maths is simplified and uses modulo 16-bit*/
                 /* TODO: Tune the subpixel value to give the half-pixel at the edge like the PS1 version has */
                 if (active_bubble_x < LEFT_EDGE)
                 {
@@ -853,7 +945,6 @@ void main (void)
     {
         play_level ();
     }
-
 }
 
 SMS_EMBED_SEGA_ROM_HEADER(9999, 0);
