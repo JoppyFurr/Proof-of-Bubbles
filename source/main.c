@@ -19,6 +19,7 @@
 
 #include "vram.h"
 #include "data.h"
+#include "level_data.h"
 #include "text.h"
 
 #define TARGET_SMS
@@ -66,7 +67,10 @@ static uint8_t active_bubble_board_position = 0;
 
 typedef enum game_state_e {
     BUBBLE_READY = 0,
-    BUBBLE_MOVING
+    BUBBLE_MOVING,
+    BUBBLE_LANDED,
+    ROUND_IS_LOST,
+    ROUND_IS_WON,
 } game_state_t;
 
 game_state_t state = BUBBLE_READY;
@@ -650,13 +654,48 @@ void load_next_bubble (void)
 
 
 /*
+ * Load a level into the game-board.
+ */
+void load_level (uint8_t level)
+{
+    uint8_t *level_board = level_data [level - 1];
+    bubble_t bubble;
+
+    /* TODO: Consider, make the level-data format and the game-board
+     *       format match, then memcpy can be used instead of a switch */
+
+    for (uint32_t i = 10; i < 114; i++)
+    {
+        switch (level_board [i])
+        {
+            case 'R':   bubble = BUBBLE_RED;      break;
+            case 'G':   bubble = BUBBLE_GREEN;    break;
+            case 'B':   bubble = BUBBLE_CYAN;     break;
+            case 'Y':   bubble = BUBBLE_YELLOW;   break;
+            case 'P':   bubble = BUBBLE_PURPLE;   break;
+            case 'O':   bubble = BUBBLE_ORANGE;   break;
+            case 'D':   bubble = BUBBLE_BLACK;    break;
+            case 'L':   bubble = BUBBLE_WHITE;    break;
+            default:    bubble = BUBBLE_NONE;
+        }
+        /* Update any position where either the level contains a bubble,
+         * or where the previous attempt might left greyed bubbles. */
+        if (bubble != BUBBLE_NONE || game_board [i] != BUBBLE_NONE)
+        {
+            set_bubble (i, bubble);
+        }
+    }
+}
+
+
+/*
  * Play one round of the game.
  * For now, the only 'level' is an all-blank starting position.
  */
-void play_level (void)
+bool play_level (uint8_t level)
 {
-    /* Clear the game board */
-    memset (game_board, BUBBLE_NONE, sizeof (game_board));
+    /* Update round number */
+    text_draw_round (level);
 
     /* Reset the timer */
     text_draw_time ();
@@ -664,12 +703,11 @@ void play_level (void)
     time_seconds = 0;
     time_frames = 0;
 
-    /* TODO: Hide the clearing of the board. Eg, use an all-blue sprite
-     *       palette or update the name-table to show all-blank tiles. */
-    for (uint16_t i = 0; i < 320; i++)
-    {
-        SMS_loadTiles (blue_tile, i, 32);
-    }
+    /* TODO: Hide the clearing of the board / loading of level.
+     *       Eg, use an all-blue sprite palette or do something
+     *       with the name-table. */
+    /* Populate game-board with level */
+    load_level (level);
 
     /* Yellow line */
     const uint32_t yellow_line [2] = { 0x000000ff, 0x0000ff00 };
@@ -736,6 +774,26 @@ void play_level (void)
                 active_bubble_velocity_y = angle_data [launcher_aim].y;
                 state = BUBBLE_MOVING;
             }
+            else if (state == ROUND_IS_LOST)
+            {
+                return false;
+            }
+            else if (state == ROUND_IS_WON && currently_falling_count == 0)
+            {
+                return true;
+            }
+        }
+
+        else if (key_pressed & PORT_A_KEY_2)
+        {
+            if (state == ROUND_IS_LOST)
+            {
+                return false;
+            }
+            else if (state == ROUND_IS_WON && currently_falling_count == 0)
+            {
+                return true;
+            }
         }
 
         /* Movement */
@@ -752,35 +810,49 @@ void play_level (void)
             if (active_bubble_collision ())
             {
                 active_bubble_calculate_board_position ();
+                state = BUBBLE_LANDED;
 
                 if (active_bubble_try_pop ())
                 {
                     /* The bubble has popped, check if this triggers any others to fall */
                     floating_bubble_check ();
+
+                    /* Check if the level has been completed */
+                    bool bubbles_remaining = false;
+                    for (uint8_t i = 10; i < 18; i++)
+                    {
+                        if (game_board [i] != BUBBLE_NONE)
+                        {
+                            bubbles_remaining = true;
+                            break;
+                        }
+                    }
+                    if (!bubbles_remaining)
+                    {
+                        state = ROUND_IS_WON;
+                    }
                 }
                 else
                 {
                     set_bubble (active_bubble_board_position, active_bubble_colour);
                     if (active_bubble_board_position >= 105)
                     {
-                        /* A bubble crossed the line, end the round. */
-                        /* TODO: Check with the PS1 game, what's left in the launcher?
-                         * Nothing, a coloured bubble, or a grey bubble? */
-                        wash_bubbles_grey ();
+                        /* TODO: Until wash_bubbles_grep is integrated into the
+                         *       main loop, hide the active bubble sprite here. */
+                        SMS_initSprites ();
+                        draw_pip ();
+                        SMS_copySpritestoSAT ();
 
-                        /* Wait for a button press then exit this attempt at the round. */
-                        while (true)
-                        {
-                            key_pressed = SMS_getKeysPressed ();
-                            if (key_pressed & (PORT_A_KEY_1 | PORT_A_KEY_2))
-                            {
-                                return;
-                            }
-                        }
+                        /* A bubble crossed the line, end the round. */
+                        wash_bubbles_grey ();
+                        state = ROUND_IS_LOST;
                     }
                 }
 
-                load_next_bubble ();
+                if (state == BUBBLE_LANDED)
+                {
+                    load_next_bubble ();
+                }
             }
             else
             {
@@ -805,10 +877,13 @@ void play_level (void)
 
         /* Sprites */
         SMS_initSprites ();
-        draw_active_bubble ();
+        if (state == BUBBLE_READY || state == BUBBLE_MOVING)
+        {
+            draw_active_bubble ();
+            text_update_time ();
+        }
         draw_pip ();
         draw_fallers ();
-        text_update_time ();
         SMS_copySpritestoSAT ();
     }
 }
@@ -918,7 +993,6 @@ void main (void)
 
     /* Text */
     text_load_patterns ();
-    text_draw_round (1);
     text_draw_time ();
     text_draw_best ();
 
@@ -944,11 +1018,21 @@ void main (void)
         SMS_loadTileMapArea (5 + strip, 1, strip_map, 1, 20);
     }
 
+    memset (game_board, BUBBLE_NONE, sizeof (game_board));
+    for (uint16_t i = 0; i < 320; i++)
+    {
+        SMS_loadTiles (blue_tile, i, 32);
+    }
+
     SMS_displayOn ();
 
+    uint8_t level = 1;
     while (true)
     {
-        play_level ();
+        if (play_level (level) == true)
+        {
+            level += 1;
+        }
     }
 }
 
