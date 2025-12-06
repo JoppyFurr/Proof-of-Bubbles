@@ -13,6 +13,7 @@
  */
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "SMSlib.h"
@@ -101,6 +102,8 @@ bubble_t game_board [143];
 static int8_t neighbours [6] = { NEIGH_TOP_LEFT, NEIGH_TOP_RIGHT,   NEIGH_LEFT,
                                  NEIGH_RIGHT,    NEIGH_BOTTOM_LEFT, NEIGH_BOTTOM_RIGHT };
 
+uint8_t colour_count [BUBBLE_MAX] = { 0 };
+
 /* A duplicate table sharing the same coordinate system as the game board.
  * Used when checking for matching groups of bubbles. Note: This could could be
  * made smaller to exclude borders and the row that is already across the line. */
@@ -161,6 +164,17 @@ void draw_pip (void)
 #define BYTES_PER_ROW 56
 void set_bubble (uint8_t position, bubble_t bubble)
 {
+    /* Keep track of bubble counts, to work out valid
+     * next bubbles to put into the launcher. */
+    if (game_board [position] == BUBBLE_NONE)
+    {
+        colour_count [bubble] += 1;
+    }
+    else if (bubble == BUBBLE_NONE)
+    {
+        colour_count [game_board [position]] -= 1;
+    }
+
     game_board [position] = bubble;
 
     /* Neighbours */
@@ -638,16 +652,29 @@ void floating_bubble_check (void)
  */
 void load_next_bubble (void)
 {
+    bubble_t new_bubble = BUBBLE_NONE;
+
+    /* TODO: Bubbles in the fall-queue are being counted when they shouldn't.
+     *       Maybe the game_board needs to be split into two:
+     *        - Logical game board, describing bubbles that are still in-play
+     *        - Graphical game board, describing bubbles that are still on-screen
+     *        Or, maybe don't load another bubble until the fall-queue is empty?
+     */
+    while (new_bubble == BUBBLE_NONE)
+    {
+        bubble_t try = BUBBLE_CYAN + (rand () & 0x07);
+        if (colour_count [try])
+        {
+            new_bubble = try;
+        }
+    }
+
     /* Reset the coordinates for the next bubble */
     active_bubble_x = LAUNCH_FROM_X;
     active_bubble_y = LAUNCH_FROM_Y;
 
     /* For now, just cycle between the colours */
-    active_bubble_colour += 1;
-    if (active_bubble_colour >= BUBBLE_MAX)
-    {
-        active_bubble_colour = BUBBLE_CYAN;
-    }
+    active_bubble_colour = new_bubble;
 
     state = BUBBLE_READY;
 }
