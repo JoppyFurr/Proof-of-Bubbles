@@ -6,6 +6,7 @@ build/
 sound_data/
 tile_data/
 game_tile_data/
+bubble_tile_data/
 !tiles/*.png
 !tools/**
 tools/**/*.o

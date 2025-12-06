@@ -32,8 +32,10 @@ build_bubbles_for_master_system ()
     # Sprite palette [0] is lighter blue (game-board background colour)
     # Sprite palette [1] is Yellow (for uncrossable line)
     # Sprite palette [2] is Gold (for uncrossable line)
+    # Note: With sprites being split across two banks, the sprite-palette is
+    #       listed in full to keep it consistent across the two calls to Sneptile.
     GAME_BACKGROUND_PALETTE="0x30"
-    GAME_SPRITE_PALETTE="0x34 0x0f 0x0b"
+    GAME_SPRITE_PALETTE="0x34 0x0f 0x0b 0x2a 0x00 0x15 0x3f 0x3c 0x03 0x0c 0x32 0x38 0x02 0x08 0x21 0x06"
 
     echo "  Generating tile data..."
     mkdir -p game_tile_data
@@ -42,11 +44,16 @@ build_bubbles_for_master_system ()
             --sprite-palette ${GAME_SPRITE_PALETTE} \
             --background-palette ${GAME_BACKGROUND_PALETTE} \
             --background tiles/border.png \
-            --panels 2x2,81 tiles/bubbles_grey.png \
-            --panels 2x2,81 tiles/bubbles.png \
+            --panels 2x2,100 tiles/bubbles_grey.png \
             --background tiles/grass.png \
             tiles/pip.png \
             --background --panels 1x2,39 tiles/text.png
+    )
+    mkdir -p bubble_tile_data
+    (
+        ${sneptile} --sprites --output-dir bubble_tile_data \
+            --sprite-palette ${GAME_SPRITE_PALETTE} \
+            --panels 2x2,100 tiles/bubbles.png
     )
 
     mkdir -p build/code
@@ -64,10 +71,20 @@ build_bubbles_for_master_system ()
             -o "build/code/${file}.rel" "source/${file}.c" || exit 1
     done
 
+    # Asset banks
+    for bank in 2 3
+    do
+        ${sdcc} -c -mz80 --constseg BANK_${bank} source/bank_${bank}.c -o build/bank_${bank}.rel
+    done
+
     echo ""
     echo "  Linking..."
     ${sdcc} -o build/Bubbles.ihx -mz80 --no-std-crt0 --data-loc 0xC000 \
-        ${devkitSMS}/crt0/crt0_sms.rel build/code/*.rel ${SMSlib}/SMSlib.lib || exit 1
+        -Wl-b_BANK_2=0x8000 -Wl-b_BANK_3=0x8000 \
+        ${devkitSMS}/crt0/crt0_sms.rel \
+        build/code/*.rel \
+        ${SMSlib}/SMSlib.lib \
+        build/bank_2.rel build/bank_3.rel || exit 1
 
     echo ""
     echo "  Generating ROM..."

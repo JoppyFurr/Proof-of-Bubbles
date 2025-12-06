@@ -14,11 +14,11 @@
 #define O 'O' /* Orange */
 #define D 'D' /* Dark / Black */
 #define L 'L' /* Light / White */
+#define C 'C' /* Clear */
 #define _ '_'
 
 #define S 'B' /* Star - Substituted with blue for now */
-#define C 'L' /* Clear - Substituted with white for now */
-#define W 'O' /* Wood - Substituted with orange for now */
+#define W 'C' /* Wood - Substituted with clear for now */
 
 uint8_t level_data [] [114] = {
 

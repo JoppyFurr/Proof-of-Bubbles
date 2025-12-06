@@ -24,9 +24,11 @@
 #include "text.h"
 
 #define TARGET_SMS
-#include "../game_tile_data/patterns.h"
-#include "../game_tile_data/pattern_index.h"
+#include "bank_2.h"
+#include "bank_3.h"
 #include "../game_tile_data/palette.h"
+#include "../game_tile_data/pattern_index.h"
+#include "../bubble_tile_data/pattern_index.h"
 
 #define LAUNCHER_AIM_MIN          0
 #define LAUNCHER_AIM_CENTRE      60
@@ -48,6 +50,7 @@ typedef enum bubble_e {
     BUBBLE_ORANGE,
     BUBBLE_BLACK,
     BUBBLE_WHITE,
+    BUBBLE_CLEAR,
     BUBBLE_MAX
 } bubble_t;
 
@@ -213,6 +216,8 @@ void set_bubble (uint8_t position, bubble_t bubble)
      *  - Avoid the left-shift by having Sneptile provide uint32_t indices instead of pattern indices.
      */
 
+    SMS_mapROMBank (3); /* Bubbles */
+
     /* Left strip */
     SMS_VRAMmemcpy (left_strip,      &bubbles_patterns [bubbles_panels [bubble * BUBBLE_MAX + neigh_tl] [0] << 3], 32);
     SMS_VRAMmemcpy (left_strip + 32, &bubbles_patterns [bubbles_panels [bubble * BUBBLE_MAX + neigh_bl] [2] << 3], 32);
@@ -220,6 +225,8 @@ void set_bubble (uint8_t position, bubble_t bubble)
     /* Right strip */
     SMS_VRAMmemcpy (right_strip,      &bubbles_patterns [bubbles_panels [bubble * BUBBLE_MAX + neigh_tr] [1] << 3], 32);
     SMS_VRAMmemcpy (right_strip + 32, &bubbles_patterns [bubbles_panels [bubble * BUBBLE_MAX + neigh_br] [3] << 3], 32);
+
+    SMS_mapROMBank (2);
 }
 
 
@@ -703,6 +710,7 @@ void load_level (uint8_t level)
             case 'O':   bubble = BUBBLE_ORANGE;   break;
             case 'D':   bubble = BUBBLE_BLACK;    break;
             case 'L':   bubble = BUBBLE_WHITE;    break;
+            case 'C':   bubble = BUBBLE_CLEAR;    break;
             default:    bubble = BUBBLE_NONE;
         }
         /* Update any position where either the level contains a bubble,
@@ -934,15 +942,17 @@ void main (void)
     }
 
     /* Bubbles as sprites */
-    for (uint8_t i = 0; i < 8; i++)
+    SMS_mapROMBank (3); /* Bubbles */
+    for (uint8_t i = 0; i < 9; i++)
     {
-        const bubble_t bubble_type [8] = { BUBBLE_CYAN, BUBBLE_RED, BUBBLE_GREEN, BUBBLE_YELLOW,
-                                           BUBBLE_PURPLE, BUBBLE_ORANGE, BUBBLE_BLACK, BUBBLE_WHITE };
+        const bubble_t bubble_type [9] = { BUBBLE_CYAN, BUBBLE_RED, BUBBLE_GREEN, BUBBLE_YELLOW,
+                                           BUBBLE_PURPLE, BUBBLE_ORANGE, BUBBLE_BLACK, BUBBLE_WHITE, BUBBLE_CLEAR };
         SMS_loadTiles (&bubbles_patterns [bubbles_panels [bubble_type [i] * BUBBLE_MAX] [0] << 3], BUBBLE_PATTERN + (i << 2)    , 32);
         SMS_loadTiles (&bubbles_patterns [bubbles_panels [bubble_type [i] * BUBBLE_MAX] [1] << 3], BUBBLE_PATTERN + (i << 2) + 1, 32);
         SMS_loadTiles (&bubbles_patterns [bubbles_panels [bubble_type [i] * BUBBLE_MAX] [2] << 3], BUBBLE_PATTERN + (i << 2) + 2, 32);
         SMS_loadTiles (&bubbles_patterns [bubbles_panels [bubble_type [i] * BUBBLE_MAX] [3] << 3], BUBBLE_PATTERN + (i << 2) + 3, 32);
     }
+    SMS_mapROMBank (2);
 
     /* Indicator pip */
     SMS_loadTiles (pip_patterns, PIP_PATTERN, sizeof (pip_patterns));
