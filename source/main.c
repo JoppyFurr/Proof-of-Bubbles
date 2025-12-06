@@ -94,8 +94,17 @@ uint8_t time_frames = 0;
  *  -> 5 rows have 7 bubbles (7 rows of 9 bubbles considering the border)
  *
  *  8 * 10 + 7 * 9 = 161 positions in the array.
+ *
+ * 'game_board' is the logical game board, containing bubbles that are currently in-play.
+ *              This is used to check groups of matching bubbles, check for detached
+ *              bubbles that need to drop, and to check the win condition.
+ *
+ * 'game_board_visible' represents the bitmap graphics currently displayed, including
+ *                      out-of-play bubbles waiting for their fall animation to start.
+ *                      This allows drawing of correct neighbouring pixels around bubbles.
  */
 bubble_t game_board [143];
+bubble_t game_board_visible [143];
 #define NEIGH_TOP_LEFT    -10
 #define NEIGH_TOP_RIGHT    -9
 #define NEIGH_LEFT         -1
@@ -165,26 +174,21 @@ void draw_pip (void)
  */
 #define BYTES_PER_STRIP 640
 #define BYTES_PER_ROW 56
-void set_bubble (uint8_t position, bubble_t bubble)
+void draw_bubble (uint8_t position, bubble_t bubble)
 {
-    /* Keep track of bubble counts, to work out valid
-     * next bubbles to put into the launcher. */
-    if (game_board [position] == BUBBLE_NONE)
+    /* Nothing to do if the bubble has already been drawn. */
+    if (game_board_visible [position] == bubble)
     {
-        colour_count [bubble] += 1;
-    }
-    else if (bubble == BUBBLE_NONE)
-    {
-        colour_count [game_board [position]] -= 1;
+        return;
     }
 
-    game_board [position] = bubble;
+    game_board_visible [position] = bubble;
 
     /* Neighbours */
-    bubble_t neigh_tl = game_board [position + NEIGH_TOP_LEFT];
-    bubble_t neigh_tr = game_board [position + NEIGH_TOP_RIGHT];
-    bubble_t neigh_bl = game_board [position + NEIGH_BOTTOM_LEFT];
-    bubble_t neigh_br = game_board [position + NEIGH_BOTTOM_RIGHT];
+    bubble_t neigh_tl = game_board_visible [position + NEIGH_TOP_LEFT];
+    bubble_t neigh_tr = game_board_visible [position + NEIGH_TOP_RIGHT];
+    bubble_t neigh_bl = game_board_visible [position + NEIGH_BOTTOM_LEFT];
+    bubble_t neigh_br = game_board_visible [position + NEIGH_BOTTOM_RIGHT];
 
     /* VRAM coordinates */
     uint16_t left_strip;
@@ -227,6 +231,20 @@ void set_bubble (uint8_t position, bubble_t bubble)
     SMS_VRAMmemcpy (right_strip + 32, &bubbles_patterns [bubbles_panels [bubble * BUBBLE_MAX + neigh_br] [3] << 3], 32);
 
     SMS_mapROMBank (2);
+}
+
+
+/*
+ * Set a bubble's presence in the logical game_board.
+ */
+void set_bubble (uint8_t position, bubble_t bubble)
+{
+    /* Keep track of bubble counts, to work out valid
+     * next bubbles to put into the launcher. */
+    colour_count [game_board [position]] -= 1;
+    colour_count [bubble] += 1;
+
+    game_board [position] = bubble;
 }
 
 
@@ -303,6 +321,9 @@ void wash_bubbles_grey (void)
         for (uint8_t i = 0; i < row_length; i++)
         {
             set_halfbubble_grey (row_start [row] + i, top_half);
+
+            /* Mark game_board_visible as invalid. */
+            game_board_visible [row_start [row] + i] = BUBBLE_MAX;
         }
     }
 }
@@ -490,6 +511,7 @@ bool active_bubble_try_pop (void)
             if (match_map [i] == MATCH_CONFIRMED)
             {
                 set_bubble (i, BUBBLE_NONE);
+                draw_bubble (i, BUBBLE_NONE);
             }
         }
         return true;
@@ -540,7 +562,7 @@ static void draw_fallers (void)
     {
         /* add a bubble from the fall-queue into currently-falling */
         uint8_t position = fall_queue [fall_queue_head++ & 0x3f];
-        bubble_t type = game_board [position];
+        bubble_t type = game_board_visible [position];
         falling_bubble_t *new = &currently_falling [currently_falling_tail++ & 0x03];
 
         new->pattern = BUBBLE_PATTERN + ((type - 1) << 2);
@@ -549,11 +571,12 @@ static void draw_fallers (void)
         new->velocity = 1;
         new->frame = 0;
 
-        set_bubble (position, BUBBLE_NONE);
+        /* Replace the falling bubble with whatever currently occupies the logical
+         * game_board position, usually BUBBLE_NONE. */
+        draw_bubble (position, game_board [position]);
         currently_falling_count += 1;
         last_drop_began = 0;
     }
-
 
     uint8_t completed = 0;
     for (uint8_t i = currently_falling_head; i != currently_falling_tail; i++)
@@ -648,6 +671,7 @@ void floating_bubble_check (void)
     {
         if (game_board [i] != BUBBLE_NONE && float_map [i] != FLOAT_CONNECTED)
         {
+            set_bubble (i, BUBBLE_NONE);
             fall_queue [fall_queue_tail++ & 0x3f] = i;
         }
     }
@@ -661,12 +685,6 @@ void load_next_bubble (void)
 {
     bubble_t new_bubble = BUBBLE_NONE;
 
-    /* TODO: Bubbles in the fall-queue are being counted when they shouldn't.
-     *       Maybe the game_board needs to be split into two:
-     *        - Logical game board, describing bubbles that are still in-play
-     *        - Graphical game board, describing bubbles that are still on-screen
-     *        Or, maybe don't load another bubble until the fall-queue is empty?
-     */
     while (new_bubble == BUBBLE_NONE)
     {
         bubble_t try = BUBBLE_CYAN + (rand () & 0x07);
@@ -713,12 +731,9 @@ void load_level (uint8_t level)
             case 'C':   bubble = BUBBLE_CLEAR;    break;
             default:    bubble = BUBBLE_NONE;
         }
-        /* Update any position where either the level contains a bubble,
-         * or where the previous attempt might left greyed bubbles. */
-        if (bubble != BUBBLE_NONE || game_board [i] != BUBBLE_NONE)
-        {
-            set_bubble (i, bubble);
-        }
+
+        set_bubble (i, bubble);
+        draw_bubble (i, bubble);
     }
 }
 
@@ -870,6 +885,7 @@ bool play_level (uint8_t level)
                 else
                 {
                     set_bubble (active_bubble_board_position, active_bubble_colour);
+                    draw_bubble (active_bubble_board_position, active_bubble_colour);
                     if (active_bubble_board_position >= 105)
                     {
                         /* TODO: Until wash_bubbles_grep is integrated into the
