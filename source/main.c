@@ -54,6 +54,8 @@ typedef enum bubble_e {
     BUBBLE_MAX
 } bubble_t;
 
+#define BUBBLE_INVALID 0x80
+
 uint8_t launcher_aim = LAUNCHER_AIM_CENTRE;
 
 /* The "active bubble" is the single bubble that is currently:
@@ -184,11 +186,11 @@ void draw_bubble (uint8_t position, bubble_t bubble)
 
     game_board_visible [position] = bubble;
 
-    /* Neighbours */
-    bubble_t neigh_tl = game_board_visible [position + NEIGH_TOP_LEFT];
-    bubble_t neigh_tr = game_board_visible [position + NEIGH_TOP_RIGHT];
-    bubble_t neigh_bl = game_board_visible [position + NEIGH_BOTTOM_LEFT];
-    bubble_t neigh_br = game_board_visible [position + NEIGH_BOTTOM_RIGHT];
+    /* Neighbours, masking out invalid neighbours. */
+    bubble_t neigh_tl = game_board_visible [position + NEIGH_TOP_LEFT] & 0x7f;
+    bubble_t neigh_tr = game_board_visible [position + NEIGH_TOP_RIGHT] & 0x7f;
+    bubble_t neigh_bl = game_board_visible [position + NEIGH_BOTTOM_LEFT] & 0x7f;
+    bubble_t neigh_br = game_board_visible [position + NEIGH_BOTTOM_RIGHT] & 0x7f;
 
     /* VRAM coordinates */
     uint16_t left_strip;
@@ -323,7 +325,7 @@ void wash_bubbles_grey (void)
             set_halfbubble_grey (row_start [row] + i, top_half);
 
             /* Mark game_board_visible as invalid. */
-            game_board_visible [row_start [row] + i] = BUBBLE_MAX;
+            game_board_visible [row_start [row] + i] = BUBBLE_INVALID;
         }
     }
 }
