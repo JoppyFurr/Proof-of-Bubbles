@@ -747,11 +747,12 @@ bool play_level (uint8_t level)
     /* Update round number */
     text_draw_round (level);
 
-    /* Reset the timer */
+    /* Reset the timer & launcher */
     text_draw_time ();
     time_minutes = 0;
     time_seconds = 0;
     time_frames = 0;
+    launcher_aim = LAUNCHER_AIM_CENTRE;
 
     /* TODO: Hide the clearing of the board / loading of level.
      *       Eg, use an all-blue sprite palette or do something
