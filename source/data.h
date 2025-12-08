@@ -38,6 +38,11 @@ static const uint8_t game_board_y [114] = {
 };
 
 
+static const uint8_t row_first_bubble [11] = {
+    10, 20, 29, 39, 48, 58, 67, 77, 86, 96, 105
+};
+
+
 /* Using a simple division by 14 to get the row, and division by 16 (after accounting
  * for stagger) to get the column gets a close estimate of a pixel's game-board position.
  * However, the bubbles aren't rectangular,  so the pixel coordinate within the rectangle

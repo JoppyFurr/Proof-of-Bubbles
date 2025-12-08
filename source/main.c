@@ -85,6 +85,10 @@ uint8_t time_minutes = 0;
 uint8_t time_seconds = 0;
 uint8_t time_frames = 0;
 
+#define GREY_WASH_BEGIN 43
+#define GREY_WASH_COMPLETE 0xff
+uint8_t grey_wash_step = GREY_WASH_COMPLETE;
+
 #define BOARD_ROWS 11
 #define BOARD_COLS 8
 
@@ -255,7 +259,7 @@ void set_bubble (uint8_t position, bubble_t bubble)
  */
 void set_halfbubble_grey (uint8_t position, bool top_half)
 {
-    bubble_t bubble = game_board [position];
+    bubble_t bubble = game_board_visible [position];
 
     if (bubble == BUBBLE_NONE)
     {
@@ -302,32 +306,45 @@ void set_halfbubble_grey (uint8_t position, bool top_half)
 
 /*
  * Upon crossing the line, convert all bubbles to grey.
- * TODO: Find out if the launcher arrow remain responsive during this.
+ *
+ * Note: The bits of grey_wash_step is split into three parts:
+ *       { row, upper_or_lower_half, delay }
  */
 void wash_bubbles_grey (void)
 {
-    /* TODO: Consider moving this to data.h and using elsewhere to simplify maths. */
-    uint8_t row_start [11] = { 10, 20, 29, 39, 48, 58, 67, 77, 86, 96, 105 };
-
-    for (uint8_t half_row = 21; half_row != 0xff; half_row--)
+    if (grey_wash_step == 0xff)
     {
-        uint8_t row = half_row >> 1;
-        bool top_half = ~half_row & 0x01;
+        return;
+    }
+
+    /* Update the wash-to-grey animation only every second frame */
+    if (grey_wash_step & 0x01)
+    {
+        uint8_t row = grey_wash_step >> 2;
+        bool top_half = ~grey_wash_step & 0x02;
 
         uint8_t row_length = (row & 0x01) ? 7 : 8;
 
-        /* For now this function is blocking until the sweep ends.
-         * Update one line per every couple of frames. */
-        SMS_waitForVBlank ();
-        SMS_waitForVBlank ();
         for (uint8_t i = 0; i < row_length; i++)
         {
-            set_halfbubble_grey (row_start [row] + i, top_half);
+            set_halfbubble_grey (row_first_bubble [row] + i, top_half);
 
-            /* Mark game_board_visible as invalid. */
-            game_board_visible [row_start [row] + i] = BUBBLE_INVALID;
         }
     }
+
+    /* Mark game_board_visible as invalid. */
+    if (grey_wash_step == 0)
+    {
+        for (uint8_t position = 10; position < 114; position++)
+        {
+            if (game_board_visible [position] != BUBBLE_NONE)
+            {
+                game_board_visible [position] = BUBBLE_INVALID;
+            }
+        }
+    }
+
+    grey_wash_step -= 1;
 }
 
 
@@ -827,7 +844,7 @@ bool play_level (uint8_t level)
                 active_bubble_velocity_y = angle_data [launcher_aim].y;
                 state = BUBBLE_MOVING;
             }
-            else if (state == ROUND_IS_LOST)
+            else if (state == ROUND_IS_LOST && grey_wash_step == 0xff)
             {
                 return false;
             }
@@ -839,7 +856,7 @@ bool play_level (uint8_t level)
 
         else if (key_pressed & PORT_A_KEY_2)
         {
-            if (state == ROUND_IS_LOST)
+            if (state == ROUND_IS_LOST && grey_wash_step == 0xff)
             {
                 return false;
             }
@@ -891,14 +908,8 @@ bool play_level (uint8_t level)
                     draw_bubble (active_bubble_board_position, active_bubble_colour);
                     if (active_bubble_board_position >= 105)
                     {
-                        /* TODO: Until wash_bubbles_grep is integrated into the
-                         *       main loop, hide the active bubble sprite here. */
-                        SMS_initSprites ();
-                        draw_pip ();
-                        SMS_copySpritestoSAT ();
-
                         /* A bubble crossed the line, end the round. */
-                        wash_bubbles_grey ();
+                        grey_wash_step = GREY_WASH_BEGIN;
                         state = ROUND_IS_LOST;
                     }
                 }
@@ -935,6 +946,10 @@ bool play_level (uint8_t level)
         {
             draw_active_bubble ();
             text_update_time ();
+        }
+        else if (state == ROUND_IS_LOST)
+        {
+            wash_bubbles_grey ();
         }
         draw_pip ();
         draw_fallers ();
