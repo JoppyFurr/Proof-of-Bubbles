@@ -17,10 +17,12 @@
 #include <string.h>
 
 #include "SMSlib.h"
+#include "PSGlib.h"
 
 #include "vram.h"
 #include "data.h"
 #include "level_data.h"
+#include "sound_data.h"
 #include "text.h"
 
 #define TARGET_SMS
@@ -793,6 +795,8 @@ bool play_level (uint8_t level)
     while (true)
     {
         SMS_waitForVBlank ();
+        PSGFrame ();
+        PSGSFXFrame ();
         uint16_t key_pressed = SMS_getKeysPressed ();
         uint16_t key_status = SMS_getKeysStatus ();
 
@@ -843,6 +847,7 @@ bool play_level (uint8_t level)
                 active_bubble_velocity_x = angle_data [launcher_aim].x;
                 active_bubble_velocity_y = angle_data [launcher_aim].y;
                 state = BUBBLE_MOVING;
+                PSGSFXPlay (launch_sound, 0x0f);
             }
             else if (state == ROUND_IS_LOST && grey_wash_step == 0xff)
             {
@@ -968,6 +973,8 @@ void main (void)
     SMS_loadBGPalette (background_palette);
     SMS_loadSpritePalette (sprite_palette);
     SMS_useFirstHalfTilesforSprites (false); /* The first half of vram holds the game board */
+
+    PSGSetSFXVolumeAttenuation (0);
 
     /* Patterns 0-319: Game board */
     for (uint16_t i = 0; i < 320; i++)

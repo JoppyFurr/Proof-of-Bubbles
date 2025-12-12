@@ -6,3 +6,4 @@
 -D__z88dk_callee=
 -D__sfr=char
 -I../devkitSMS/SMSlib/src/
+-I../devkitSMS/PSGlib/src/

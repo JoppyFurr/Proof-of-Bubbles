@@ -6,6 +6,7 @@ echo "--------------------------------------"
 sdcc="${HOME}/Code/sdcc-4.3.0/bin/sdcc"
 devkitSMS="${HOME}/Code/devkitSMS"
 SMSlib="${devkitSMS}/SMSlib"
+PSGlib="${devkitSMS}/PSGlib"
 ihx2sms="${devkitSMS}/ihx2sms/Linux/ihx2sms"
 sneptile="./tools/Sneptile-0.10.0/Sneptile"
 
@@ -67,7 +68,7 @@ build_bubbles_for_master_system ()
         fi
 
         echo "   -> ${file}.c"
-        ${sdcc} -c -mz80 --peep-file ${devkitSMS}/SMSlib/src/peep-rules.txt -I ${SMSlib}/src \
+        ${sdcc} -c -mz80 --peep-file ${devkitSMS}/SMSlib/src/peep-rules.txt -I ${SMSlib}/src -I ${PSGlib}/src \
             -o "build/code/${file}.rel" "source/${file}.c" || exit 1
     done
 
@@ -84,6 +85,7 @@ build_bubbles_for_master_system ()
         ${devkitSMS}/crt0/crt0_sms.rel \
         build/code/*.rel \
         ${SMSlib}/SMSlib.lib \
+        ${PSGlib}/PSGlib.lib \
         build/bank_2.rel build/bank_3.rel || exit 1
 
     echo ""
