@@ -795,8 +795,6 @@ bool play_level (uint8_t level)
     while (true)
     {
         SMS_waitForVBlank ();
-        PSGFrame ();
-        PSGSFXFrame ();
         uint16_t key_pressed = SMS_getKeysPressed ();
         uint16_t key_status = SMS_getKeysStatus ();
 
@@ -964,6 +962,16 @@ bool play_level (uint8_t level)
 
 
 /*
+ * Frame Interrupt
+ */
+static void frame_interrupt (void)
+{
+    PSGFrame ();
+    PSGSFXFrame ();
+}
+
+
+/*
  * Entry point.
  */
 void main (void)
@@ -975,6 +983,7 @@ void main (void)
     SMS_useFirstHalfTilesforSprites (false); /* The first half of vram holds the game board */
 
     PSGSetSFXVolumeAttenuation (0);
+    SMS_setFrameInterruptHandler (frame_interrupt);
 
     /* Patterns 0-319: Game board */
     for (uint16_t i = 0; i < 320; i++)
