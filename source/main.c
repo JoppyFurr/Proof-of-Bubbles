@@ -59,6 +59,7 @@ typedef enum bubble_e {
 #define BUBBLE_INVALID 0x80
 
 uint8_t launcher_aim = LAUNCHER_AIM_CENTRE;
+uint8_t tick_holdoff = 0;
 
 /* The "active bubble" is the single bubble that is currently:
  *  - Loaded into the bubble-launcher, or
@@ -806,10 +807,20 @@ bool play_level (uint8_t level)
             if (key_horizontal == PORT_A_KEY_LEFT && launcher_aim > LAUNCHER_AIM_MIN)
             {
                 launcher_aim -= 1;
+                if (tick_holdoff == 0)
+                {
+                    PSGSFXPlay (tick_sound, 0x0f);
+                    tick_holdoff = 4;
+                }
             }
             else if (key_horizontal == PORT_A_KEY_RIGHT && launcher_aim < LAUNCHER_AIM_MAX)
             {
                 launcher_aim += 1;
+                if (tick_holdoff == 0)
+                {
+                    PSGSFXPlay (tick_sound, 0x0f);
+                    tick_holdoff = 4;
+                }
             }
         }
         else if (key_vertical)
@@ -819,10 +830,20 @@ bool play_level (uint8_t level)
                 if (launcher_aim < LAUNCHER_AIM_CENTRE)
                 {
                     launcher_aim++;
+                    if (tick_holdoff == 0)
+                    {
+                        PSGSFXPlay (tick_sound, 0x0f);
+                        tick_holdoff = 4;
+                    }
                 }
                 else if (launcher_aim > LAUNCHER_AIM_CENTRE)
                 {
                     launcher_aim--;
+                    if (tick_holdoff == 0)
+                    {
+                        PSGSFXPlay (tick_sound, 0x0f);
+                        tick_holdoff = 4;
+                    }
                 }
             }
             else if (key_vertical == PORT_A_KEY_DOWN)
@@ -834,6 +855,7 @@ bool play_level (uint8_t level)
                 else if (launcher_aim > LAUNCHER_AIM_CENTRE && launcher_aim < LAUNCHER_AIM_MAX)
                 {
                     launcher_aim++;
+                    PSGSFXPlay (pop_sound, 0x0f);
                 }
             }
         }
@@ -887,6 +909,8 @@ bool play_level (uint8_t level)
 
                 if (active_bubble_try_pop ())
                 {
+                    PSGSFXPlay (pop_sound, 0x0f);
+
                     /* The bubble has popped, check if this triggers any others to fall */
                     floating_bubble_check ();
 
@@ -934,11 +958,13 @@ bool play_level (uint8_t level)
                 {
                     active_bubble_x = 0x5000 - active_bubble_x;
                     active_bubble_velocity_x = -active_bubble_velocity_x;
+                    PSGSFXPlay (bounce_sound, 0x0f);
                 }
                 else if (active_bubble_x > RIGHT_EDGE)
                 {
                     active_bubble_x = 0x3000 - active_bubble_x;
                     active_bubble_velocity_x = -active_bubble_velocity_x;
+                    PSGSFXPlay (bounce_sound, 0x0f);
                 }
             }
         }
@@ -957,6 +983,11 @@ bool play_level (uint8_t level)
         draw_pip ();
         draw_fallers ();
         SMS_copySpritestoSAT ();
+
+        if (tick_holdoff > 0)
+        {
+            tick_holdoff--;
+        }
     }
 }
 
