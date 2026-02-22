@@ -67,6 +67,7 @@ uint8_t tick_holdoff = 0;
  *  - In the process of landing.
  * A lot of functionality interacts with the active bubble, so
  * the state is made global for quick access. */
+static bubble_t next_bubble = BUBBLE_CYAN;
 static bubble_t active_bubble_colour = BUBBLE_CYAN;
 static uint16_t active_bubble_velocity_x = 0;
 static uint16_t active_bubble_velocity_y = 0;
@@ -700,28 +701,91 @@ void floating_bubble_check (void)
 }
 
 
+/* We have to spend the VRAM either way, so draw into the background
+ * instead of using sprites. This way we're at least not eating into
+ * the limiting number of sprites per line.
+ */
+void draw_next_bubble (void)
+{
+    uint32_t composite_left [4];
+    uint32_t composite_right [4];
+
+    uint32_t bubble_bottom_left [3];
+    uint32_t bubble_bottom_right [3];
+
+    SMS_mapROMBank (3); /* Bubbles */
+
+    uint16_t bubble_index = next_bubble * BUBBLE_MAX;
+
+    /* Top 12 px (bubble alone) */
+    uint16_t dest = NEXT_BUBBLE_PATTERN << 5;
+    SMS_VRAMmemcpy (dest,      &bubbles_patterns [bubbles_panels [bubble_index] [0] << 3], 32);
+    SMS_VRAMmemcpy (dest + 32, &bubbles_patterns [bubbles_panels [bubble_index] [2] << 3], 16);
+    SMS_VRAMmemcpy (dest + 64, &bubbles_patterns [bubbles_panels [bubble_index] [1] << 3], 32);
+    SMS_VRAMmemcpy (dest + 96, &bubbles_patterns [bubbles_panels [bubble_index] [3] << 3], 16);
+
+    memcpy (bubble_bottom_left,  &bubbles_patterns [bubbles_panels [bubble_index] [2] << 3] + 4, 12);
+    memcpy (bubble_bottom_right, &bubbles_patterns [bubbles_panels [bubble_index] [3] << 3] + 4, 12);
+
+    SMS_mapROMBank (2);
+
+    /* Bottom 4 px (bubble and grass) */
+    memcpy (composite_left,  &grass_patterns [4],  16);
+    memcpy (composite_right, &grass_patterns [12], 16);
+
+    /* A bitmask is used to keep the grass blades in front of the bubble */
+
+    /* Overlap line 1 */
+    composite_left  [0] |= (bubble_bottom_left  [0] & 0xaeaeaeae);
+    composite_right [0] |= (bubble_bottom_right [0] & 0xaaaaaaaa);
+
+    /* Overlap line 2 */
+    composite_left  [1] |= (bubble_bottom_left  [1] & 0x2a2a2a2a);
+    composite_right [1] |= (bubble_bottom_right [1] & 0xaaaaaaaa);
+
+    /* Overlap line 3 */
+    composite_left  [2] |= (bubble_bottom_left  [2] & 0x22222222);
+    composite_right [2] |= (bubble_bottom_right [2] & 0x88888888);
+
+    SMS_VRAMmemcpy (dest +  48, composite_left, 16);
+    SMS_VRAMmemcpy (dest + 112, composite_right, 16);
+}
+
+
+/*
+ * Prepare a bubble for the 'next' slot.
+ */
+void prepare_next_bubble (void)
+{
+    next_bubble = BUBBLE_NONE;
+
+    /* TODO: Find a solution with a more constant time */
+    while (next_bubble == BUBBLE_NONE)
+    {
+        bubble_t try = BUBBLE_CYAN + (rand () & 0x07);
+        if (colour_count [try])
+        {
+            next_bubble = try;
+        }
+    }
+
+    draw_next_bubble ();
+}
+
+
 /*
  * Load the next bubble into the launcher.
  */
 void load_next_bubble (void)
 {
-    bubble_t new_bubble = BUBBLE_NONE;
-
-    while (new_bubble == BUBBLE_NONE)
-    {
-        bubble_t try = BUBBLE_CYAN + (rand () & 0x07);
-        if (colour_count [try])
-        {
-            new_bubble = try;
-        }
-    }
+    active_bubble_colour = next_bubble;
 
     /* Reset the coordinates for the next bubble */
     active_bubble_x = LAUNCH_FROM_X;
     active_bubble_y = LAUNCH_FROM_Y;
 
-    /* For now, just cycle between the colours */
-    active_bubble_colour = new_bubble;
+    /* Prepare the next new bubble */
+    prepare_next_bubble ();
 
     state = BUBBLE_READY;
 }
@@ -791,60 +855,6 @@ void draw_game_board_ui (void)
 }
 
 
-/* We have to spend the VRAM either way, so draw into the background
- * instead of using sprites. This way we're at least not eating into
- * the limiting number of sprites per line.
- */
-void draw_next_bubble (void)
-{
-    uint32_t composite_left [4];
-    uint32_t composite_right [4];
-
-    uint32_t bubble_bottom_left [3];
-    uint32_t bubble_bottom_right [3];
-
-    /* TODO: For now, a cyan bubble is hard-coded */
-    bubble_t next_bubble = BUBBLE_CYAN;
-
-    SMS_mapROMBank (3); /* Bubbles */
-
-    uint16_t bubble_index = next_bubble * BUBBLE_MAX;
-
-    /* Top 12 px (bubble alone) */
-    uint16_t dest = NEXT_BUBBLE_PATTERN << 5;
-    SMS_VRAMmemcpy (dest,      &bubbles_patterns [bubbles_panels [bubble_index] [0] << 3], 32);
-    SMS_VRAMmemcpy (dest + 32, &bubbles_patterns [bubbles_panels [bubble_index] [2] << 3], 16);
-    SMS_VRAMmemcpy (dest + 64, &bubbles_patterns [bubbles_panels [bubble_index] [1] << 3], 32);
-    SMS_VRAMmemcpy (dest + 96, &bubbles_patterns [bubbles_panels [bubble_index] [3] << 3], 16);
-
-    memcpy (bubble_bottom_left,  &bubbles_patterns [bubbles_panels [bubble_index] [2] << 3] + 4, 12);
-    memcpy (bubble_bottom_right, &bubbles_patterns [bubbles_panels [bubble_index] [3] << 3] + 4, 12);
-
-    SMS_mapROMBank (2);
-
-    /* Bottom 4 px (bubble and grass) */
-    memcpy (composite_left,  &grass_patterns [4],  16);
-    memcpy (composite_right, &grass_patterns [12], 16);
-
-    /* A bitmask is used to keep the grass blades in front of the bubble */
-
-    /* Overlap line 1 */
-    composite_left  [0] |= (bubble_bottom_left  [0] & 0xaeaeaeae);
-    composite_right [0] |= (bubble_bottom_right [0] & 0xaaaaaaaa);
-
-    /* Overlap line 2 */
-    composite_left  [1] |= (bubble_bottom_left  [1] & 0x2a2a2a2a);
-    composite_right [1] |= (bubble_bottom_right [1] & 0xaaaaaaaa);
-
-    /* Overlap line 3 */
-    composite_left  [2] |= (bubble_bottom_left  [2] & 0x22222222);
-    composite_right [2] |= (bubble_bottom_right [2] & 0x88888888);
-
-    SMS_VRAMmemcpy (dest +  48, composite_left, 16);
-    SMS_VRAMmemcpy (dest + 112, composite_right, 16);
-}
-
-
 /*
  * Play one round of the game.
  */
@@ -860,18 +870,16 @@ bool play_level (uint8_t level)
     time_frames = 0;
     launcher_aim = LAUNCHER_AIM_CENTRE;
 
-    draw_game_board_ui ();
-    draw_next_bubble ();
 
     /* TODO: Hide the clearing of the board / loading of level.
      *       Eg, use an all-blue sprite palette or do something
      *       with the name-table. */
+
     /* Populate game-board with level */
     load_level (level);
 
-    /* TODO: Update this function to put the existing 'next' bubble
-     *       into the launger and the generated bubble into the next
-     *       slot. */
+    draw_game_board_ui (); /* UI is drawn after load_level, to avoid drawing over line-crossing bubbles. */
+    prepare_next_bubble (); /* Don't let the 'next' bubble carry over from the previous level */
     load_next_bubble ();
 
     while (true)
