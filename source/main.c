@@ -3,7 +3,7 @@
  * A Bust-A-Move clone for the Sega Master System
  *
  * TODOs:
- *  - Seed rand from R, generate random bubbles.
+ *  - Seed rand from R
  *  - Save & restore rand seed.
  *  - Draw the launcher arrow
  *  - High-score table
@@ -760,9 +760,93 @@ void load_level (uint8_t level)
 }
 
 
+/* Draw the UI elements that get copied into the game
+ * board vram area (yellow line and 'next' signpost.
+ *
+ * Note on coordinates:
+ *  -> 640 bytes per column.
+ *  -> 32 bytes per tile within column.
+ *  -> 4 bytes per line within column.
+ */
+void draw_game_board_ui (void)
+{
+    /* Yellow line */
+    const uint32_t yellow_line [2] = { 0x0000ffff, 0x00ff0000 };
+    uint16_t line_index = 18 * 32 + 4;
+    for (uint8_t x = 0; x < 16; x++)
+    {
+        SMS_VRAMmemcpy (line_index, yellow_line, 8);
+        line_index += 640;
+    }
+
+    /* Next bubble signpost, 9px high. Note that the
+     * top line is re-used for the bottom line. */
+    uint16_t dest = 12 * 640 + 150 * 4;
+    for (uint8_t x = 0; x < 32; x += 8)
+    {
+        SMS_VRAMmemcpy (dest, &next_patterns [x], 32);
+        SMS_VRAMmemcpy (dest + 32, &next_patterns [x], 4);
+        dest += 640;
+    }
+}
+
+
+/* We have to spend the VRAM either way, so draw into the background
+ * instead of using sprites. This way we're at least not eating into
+ * the limiting number of sprites per line.
+ */
+void draw_next_bubble (void)
+{
+    uint32_t composite_left [4];
+    uint32_t composite_right [4];
+
+    uint32_t bubble_bottom_left [3];
+    uint32_t bubble_bottom_right [3];
+
+    /* TODO: For now, a cyan bubble is hard-coded */
+    bubble_t next_bubble = BUBBLE_CYAN;
+
+    SMS_mapROMBank (3); /* Bubbles */
+
+    uint16_t bubble_index = next_bubble * BUBBLE_MAX;
+
+    /* Top 12 px (bubble alone) */
+    uint16_t dest = NEXT_BUBBLE_PATTERN << 5;
+    SMS_VRAMmemcpy (dest,      &bubbles_patterns [bubbles_panels [bubble_index] [0] << 3], 32);
+    SMS_VRAMmemcpy (dest + 32, &bubbles_patterns [bubbles_panels [bubble_index] [2] << 3], 16);
+    SMS_VRAMmemcpy (dest + 64, &bubbles_patterns [bubbles_panels [bubble_index] [1] << 3], 32);
+    SMS_VRAMmemcpy (dest + 96, &bubbles_patterns [bubbles_panels [bubble_index] [3] << 3], 16);
+
+    memcpy (bubble_bottom_left,  &bubbles_patterns [bubbles_panels [bubble_index] [2] << 3] + 4, 12);
+    memcpy (bubble_bottom_right, &bubbles_patterns [bubbles_panels [bubble_index] [3] << 3] + 4, 12);
+
+    SMS_mapROMBank (2);
+
+    /* Bottom 4 px (bubble and grass) */
+    memcpy (composite_left,  &grass_patterns [4],  16);
+    memcpy (composite_right, &grass_patterns [12], 16);
+
+    /* A bitmask is used to keep the grass blades in front of the bubble */
+
+    /* Overlap line 1 */
+    composite_left  [0] |= (bubble_bottom_left  [0] & 0xaeaeaeae);
+    composite_right [0] |= (bubble_bottom_right [0] & 0xaaaaaaaa);
+
+    /* Overlap line 2 */
+    composite_left  [1] |= (bubble_bottom_left  [1] & 0x2a2a2a2a);
+    composite_right [1] |= (bubble_bottom_right [1] & 0xaaaaaaaa);
+
+    /* Overlap line 3 */
+    composite_left  [2] |= (bubble_bottom_left  [2] & 0x22222222);
+    composite_right [2] |= (bubble_bottom_right [2] & 0x88888888);
+
+    SMS_VRAMmemcpy (dest +  48, composite_left, 16);
+    SMS_VRAMmemcpy (dest + 112, composite_right, 16);
+}
+
+
 /*
  * Play one round of the game.
- * For now, the only 'level' is an all-blank starting position.
  */
 bool play_level (uint8_t level)
 {
@@ -776,21 +860,18 @@ bool play_level (uint8_t level)
     time_frames = 0;
     launcher_aim = LAUNCHER_AIM_CENTRE;
 
+    draw_game_board_ui ();
+    draw_next_bubble ();
+
     /* TODO: Hide the clearing of the board / loading of level.
      *       Eg, use an all-blue sprite palette or do something
      *       with the name-table. */
     /* Populate game-board with level */
     load_level (level);
 
-    /* Yellow line */
-    const uint32_t yellow_line [2] = { 0x000000ff, 0x0000ff00 };
-    uint16_t line_index = 18 * 32 + 4;
-    for (uint8_t x = 0; x < 16; x++)
-    {
-        SMS_VRAMmemcpy (line_index, yellow_line, 8);
-        line_index += 640;
-    }
-
+    /* TODO: Update this function to put the existing 'next' bubble
+     *       into the launger and the generated bubble into the next
+     *       slot. */
     load_next_bubble ();
 
     while (true)
@@ -1082,6 +1163,12 @@ void main (void)
                  * lock in the green bubble. */
                 row [x] = BLUE_TILE_PATTERN | 0x0800;
             }
+            /* Next bubble area */
+            if (y == 21)
+            {
+                row [18] = NEXT_BUBBLE_PATTERN + 0 | 0x0800;
+                row [19] = NEXT_BUBBLE_PATTERN + 2 | 0x0800;
+            }
         }
         else if (y == 22) /* Grass row 1 */
         {
@@ -1096,6 +1183,8 @@ void main (void)
                 row [x] += 4;
             }
             row [4] = BORDER_PATTERN + 6;
+            row [18] = NEXT_BUBBLE_PATTERN + 1 | 0x0800;
+            row [19] = NEXT_BUBBLE_PATTERN + 3 | 0x0800;
             row [21] = BORDER_PATTERN + 7;
         }
         else if (y == 23) /* Grass row 2 */

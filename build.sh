@@ -30,13 +30,17 @@ build_bubbles_for_master_system ()
     echo "Building Bubbles for Master System..."
 
     # Background palette [0] is blue (background colour)
+    # Background palette [1] is dark green (grass)
+    # Background palette [2] is light green (grass)
     # Sprite palette [0] is lighter blue (game-board background colour)
-    # Sprite palette [1] is Yellow (for uncrossable line)
-    # Sprite palette [2] is Gold (for uncrossable line)
+    # Sprite palette [1] is dark green (grass)
+    # Sprite palette [2] is light green (grass)
+    # Sprite palette [3] is Yellow (for uncrossable line)
+    # Sprite palette [4] is Gold (for uncrossable line)
     # Note: With sprites being split across two banks, the sprite-palette is
     #       listed in full to keep it consistent across the two calls to Sneptile.
-    GAME_BACKGROUND_PALETTE="0x30"
-    GAME_SPRITE_PALETTE="0x34 0x0f 0x0b 0x2a 0x00 0x15 0x3f 0x3c 0x03 0x0c 0x32 0x38 0x02 0x08 0x21 0x06"
+    GAME_BACKGROUND_PALETTE="0x30 0x08 0x0c"
+    GAME_SPRITE_PALETTE="0x34 0x08 0x0c 0x0f 0x0b 0x2a 0x00 0x15 0x3f 0x3c 0x03 0x32 0x38 0x02 0x21 0x06"
 
     echo "  Generating tile data..."
     mkdir -p game_tile_data
@@ -47,6 +51,7 @@ build_bubbles_for_master_system ()
             --background tiles/border.png \
             --panels 2x2,100 tiles/bubbles_grey.png \
             --background tiles/grass.png \
+            tiles/next.png \
             tiles/pip.png \
             --background --panels 1x2,39 tiles/text.png
     )

@@ -10,11 +10,12 @@
 #define PIP_PATTERN             356
 #define BLUE_TILE_PATTERN       357
 #define GRASS_PATTERN           358
-#define BORDER_PATTERN          366
-#define TEXT_ROUND_PATTERN      374
-#define TEXT_TIME_PATTERN       384
-#define TEXT_BEST_PATTERN       392
-#define SYMBOLS_PATTERN         400
-#define ROUND_DIGITS_PATTERN    403
-#define DIGITS_PATTERN          407
+#define NEXT_BUBBLE_PATTERN     366
+#define BORDER_PATTERN          370
+#define TEXT_ROUND_PATTERN      378
+#define TEXT_TIME_PATTERN       388
+#define TEXT_BEST_PATTERN       396
+#define SYMBOLS_PATTERN         404
+#define ROUND_DIGITS_PATTERN    407
+#define DIGITS_PATTERN          411
 

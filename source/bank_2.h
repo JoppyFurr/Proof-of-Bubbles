@@ -11,5 +11,6 @@
 extern const uint32_t border_patterns [64];
 extern const uint32_t bubbles_grey_patterns [1272];
 extern const uint32_t grass_patterns [48];
+extern const uint32_t next_patterns [24];
 extern const uint32_t pip_patterns [8];
 extern const uint32_t text_patterns [528];
