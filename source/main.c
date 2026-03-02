@@ -3,13 +3,14 @@
  * A Bust-A-Move clone for the Sega Master System
  *
  * TODOs:
- *  - Seed rand from R
- *  - Save & restore rand seed.
  *  - Draw the launcher arrow
  *  - High-score table
  *  - Colourblind mode
  *  - Shaking & dropping
  *  - Music
+ *  - Soft-landing for bubbles
+ *  - Pop animation
+ *  - Star bubbles
  */
 #include <stdbool.h>
 #include <stdint.h>
@@ -19,6 +20,8 @@
 #include "SMSlib.h"
 #include "PSGlib.h"
 
+#include "rng.h"
+#include "save.h"
 #include "vram.h"
 #include "data.h"
 #include "level_data.h"
@@ -1105,6 +1108,8 @@ void main (void)
     PSGSetSFXVolumeAttenuation (0);
     SMS_setFrameInterruptHandler (frame_interrupt);
 
+    sram_load ();
+
     /* Patterns 0-319: Game board */
     for (uint16_t i = 0; i < 320; i++)
     {
@@ -1244,6 +1249,11 @@ void main (void)
     uint8_t level = 1;
     while (true)
     {
+        /* The RNG is seeded from the R register. This is done here where the timing is
+         * affected by the user. This should be better than a fixed point like the start
+         * of main (), where we could read the same R value each time the game starts. */
+        rng_seed ();
+
         if (play_level (level) == true)
         {
             level += 1;

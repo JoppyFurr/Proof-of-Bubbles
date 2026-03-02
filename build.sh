@@ -64,7 +64,7 @@ build_bubbles_for_master_system ()
 
     mkdir -p build/code
     echo "  Compiling..."
-    for file in main text
+    for file in main text rng save
     do
         # Don't recompile files that are already up to date
         if [ -e "./build/code/${file}.rel" -a "./source/${file}.c" -ot "./build/code/${file}.rel" ]
