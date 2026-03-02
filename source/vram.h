@@ -3,6 +3,15 @@
  * A Bust-A-Move clone for the Sega Master System
  *
  * Locations of patterns in vram.
+ *
+ * Note:
+ *     [  0 - 447] Patterns
+ *     [448 - 495] Name table (no vertical scroll)
+ *     [496 - 503] Patterns
+ *     [504 - 511] Sprite table
+ *
+ *     ** Currently only 13 patterns unused **
+ *     Features requiring additional patterns should be done first or removed.
  */
 
 /* VRAM Locations */
@@ -18,4 +27,4 @@
 #define SYMBOLS_PATTERN         404
 #define ROUND_DIGITS_PATTERN    407
 #define DIGITS_PATTERN          411
-
+#define VRAM_END                443
