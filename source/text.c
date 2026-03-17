@@ -18,6 +18,10 @@ extern uint8_t time_minutes;
 extern uint8_t time_seconds;
 extern uint8_t time_frames;
 
+extern uint8_t best_time_minutes;
+extern uint8_t best_time_seconds;
+extern uint8_t best_time_frames;
+
 /* Modulus and division are slow, so lets try a look-up table
  * to get the ones and tens digits when updating the timer */
 
@@ -203,7 +207,7 @@ void text_update_time (void)
             {
                 time_minutes += 1;
 
-                /* Update seconds digits */
+                /* Update minutes digits */
                 value_buf [0] = DIGITS_PATTERN + int_to_tens [time_minutes];
                 value_buf [1] = DIGITS_PATTERN + int_to_ones [time_minutes];
                 value_buf [2] = DIGITS_PATTERN + int_to_tens [time_minutes] + 10;
@@ -235,6 +239,36 @@ void text_draw_time (void)
         DIGITS_PATTERN + 10, BLUE_TILE_PATTERN,   DIGITS_PATTERN + 10, DIGITS_PATTERN + 10
     };
     SMS_loadTileMapArea (23, 11, value_buf, 8, 2);
+}
+
+
+/*
+ * Update the best time indicator
+ */
+void text_update_best (void)
+{
+    uint16_t value_buf [4];
+
+    /* Centiseconds digits */
+    value_buf [0] = DIGITS_PATTERN + frame_to_centiseconds_tens [best_time_frames];
+    value_buf [1] = DIGITS_PATTERN + frame_to_centiseconds_ones [best_time_frames];
+    value_buf [2] = DIGITS_PATTERN + frame_to_centiseconds_tens [best_time_frames] + 10;
+    value_buf [3] = DIGITS_PATTERN + frame_to_centiseconds_ones [best_time_frames] + 10;
+    SMS_loadTileMapArea (29, 16, value_buf, 2, 2);
+
+    /* Seconds digits */
+    value_buf [0] = DIGITS_PATTERN + int_to_tens [best_time_seconds];
+    value_buf [1] = DIGITS_PATTERN + int_to_ones [best_time_seconds];
+    value_buf [2] = DIGITS_PATTERN + int_to_tens [best_time_seconds] + 10;
+    value_buf [3] = DIGITS_PATTERN + int_to_ones [best_time_seconds] + 10;
+    SMS_loadTileMapArea (26, 16, value_buf, 2, 2);
+
+    /* Minutes digits */
+    value_buf [0] = DIGITS_PATTERN + int_to_tens [best_time_minutes];
+    value_buf [1] = DIGITS_PATTERN + int_to_ones [best_time_minutes];
+    value_buf [2] = DIGITS_PATTERN + int_to_tens [best_time_minutes] + 10;
+    value_buf [3] = DIGITS_PATTERN + int_to_ones [best_time_minutes] + 10;
+    SMS_loadTileMapArea (23, 16, value_buf, 2, 2);
 }
 
 

@@ -9,7 +9,7 @@
 void text_load_patterns (void);
 
 /* Draw the round indicator. */
-void  text_draw_round (uint8_t);
+void text_draw_round (uint8_t round);
 
 /* Update the time indicator */
 void text_update_time (void);
@@ -19,3 +19,6 @@ void text_draw_time (void);
 
 /* Draw the best-time indicator */
 void text_draw_best (void);
+
+/* Update the best time indicator */
+void text_update_best (void);

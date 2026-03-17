@@ -4,13 +4,17 @@
  *
  * TODOs:
  *  - Draw the launcher arrow
- *  - High-score table
+ *  - Push-down
+ *  - Auto-fire countdown
  *  - Colourblind mode
  *  - Shaking & dropping
  *  - Music
  *  - Soft-landing for bubbles
  *  - Pop animation
  *  - Star bubbles
+ *  - Win / Lose text
+ *  - Top-three best times?
+ *  - Title screen
  */
 #include <stdbool.h>
 #include <stdint.h>
@@ -88,9 +92,15 @@ typedef enum game_state_e {
 
 game_state_t state = BUBBLE_READY;
 
+/* Timer for the current game */
 uint8_t time_minutes = 0;
 uint8_t time_seconds = 0;
 uint8_t time_frames = 0;
+
+/* Best time for the current level */
+uint8_t best_time_minutes = 0;
+uint8_t best_time_seconds = 0;
+uint8_t best_time_frames = 0;
 
 #define GREY_WASH_BEGIN 43
 #define GREY_WASH_COMPLETE 0xff
@@ -865,6 +875,8 @@ bool play_level (uint8_t level)
 {
     /* Update round number */
     text_draw_round (level);
+    sram_load_best_time (level);
+    text_update_best ();
 
     /* Reset the timer & launcher */
     text_draw_time ();
@@ -1019,6 +1031,18 @@ bool play_level (uint8_t level)
                     if (!bubbles_remaining)
                     {
                         state = ROUND_IS_WON;
+
+                        /* Check if this is a new best time */
+                        if ((time_minutes < best_time_minutes) ||
+                            (time_minutes == best_time_minutes && time_seconds < best_time_seconds) ||
+                            (time_minutes == best_time_minutes && time_seconds == best_time_seconds && time_frames < best_time_frames))
+                        {
+                            best_time_frames = time_frames;
+                            best_time_seconds = time_seconds;
+                            best_time_minutes = time_minutes;
+                            text_update_best ();
+                            sram_save_best_time (level);
+                        }
                     }
                 }
                 else
