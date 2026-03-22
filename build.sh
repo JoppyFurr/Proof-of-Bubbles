@@ -33,11 +33,10 @@ build_bubbles_for_master_system ()
     mkdir -p title_tile_data
     (
         # Background palette [0] is blue (background colour)
-        # Background palette [1] is white (font)
-        # Background palette [2] is light yellow (font)
-        # Background palette [3] is light orange (font)
+        # Background palette [1:11] are used both for the static image, and for
+        #                           the palette cycle in "PRESS START"
         ${sneptile} --output-dir title_tile_data \
-            --background-palette 0x30 0x3f 0x2f 0x1b \
+            --background-palette 0x30 0x3f 0x2f 0x1b 0x0f 0x0b 0x0c 0x08 0x03 0x02 0x3c 0x38 \
             --sprite-palette 0x00 \
             --background tiles/title_screen.png
     )

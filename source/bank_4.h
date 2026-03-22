@@ -7,4 +7,4 @@
  * NOTE: For now, the array size is manually added.
  *       This should be automatically calculated by Sneptile.
  */
-extern const uint32_t title_screen_patterns [936];
+extern const uint32_t title_screen_patterns [992];
