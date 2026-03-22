@@ -1285,6 +1285,13 @@ void main (void)
         if (play_level (level) == true)
         {
             level += 1;
+
+            /* For now there are only 10 levels, return to the
+             * first level once the last has been completed. */
+            if (level > 10)
+            {
+                level = 1;
+            }
         }
     }
 }
