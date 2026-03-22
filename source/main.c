@@ -903,10 +903,21 @@ bool play_level (uint8_t level)
         SMS_waitForVBlank ();
         uint16_t key_pressed = SMS_getKeysPressed ();
         uint16_t key_status = SMS_getKeysStatus ();
+        uint16_t key_horizontal;
+        uint16_t key_vertical;
 
-        /* Aiming */
-        uint16_t key_horizontal = key_status & (PORT_A_KEY_LEFT | PORT_A_KEY_RIGHT);
-        uint16_t key_vertical = key_status & (PORT_A_KEY_UP | PORT_A_KEY_DOWN);
+        /* If Button-2 is held down, single step the aiming */
+        if (key_status & PORT_A_KEY_2)
+        {
+            key_horizontal = key_pressed & (PORT_A_KEY_LEFT | PORT_A_KEY_RIGHT);
+            key_vertical = key_pressed & (PORT_A_KEY_UP | PORT_A_KEY_DOWN);
+        }
+        else
+        {
+            key_horizontal = key_status & (PORT_A_KEY_LEFT | PORT_A_KEY_RIGHT);
+            key_vertical = key_status & (PORT_A_KEY_UP | PORT_A_KEY_DOWN);
+        }
+
         if (key_horizontal)
         {
             if (key_horizontal == PORT_A_KEY_LEFT && launcher_aim > LAUNCHER_AIM_MIN)
