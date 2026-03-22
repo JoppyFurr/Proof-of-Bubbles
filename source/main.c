@@ -31,6 +31,7 @@
 #include "level_data.h"
 #include "sound_data.h"
 #include "text.h"
+#include "title.h"
 
 #define TARGET_SMS
 #include "bank_2.h"
@@ -1123,6 +1124,9 @@ static void frame_interrupt (void)
  */
 void main (void)
 {
+    /* Show the title screen */
+    title_screen ();
+
     /* Setup */
     SMS_setBackdropColor (0);
     SMS_loadBGPalette (background_palette);

@@ -29,6 +29,18 @@ build_bubbles_for_master_system ()
 {
     echo "Building Bubbles for Master System..."
 
+    echo "  Generating tile data..."
+    mkdir -p title_tile_data
+    (
+        # Background palette [0] is blue (background colour)
+        # Background palette [1] is white (font)
+        # Background palette [2] is light yellow (font)
+        # Background palette [3] is light orange (font)
+        ${sneptile} --output-dir title_tile_data \
+            --background-palette 0x30 0x3f 0x2f 0x1b \
+            --sprite-palette 0x00 \
+            --background tiles/title_screen.png
+    )
     # Background palette [0] is blue (background colour)
     # Background palette [1] is dark green (grass)
     # Background palette [2] is light green (grass)
@@ -41,8 +53,6 @@ build_bubbles_for_master_system ()
     #       listed in full to keep it consistent across the two calls to Sneptile.
     GAME_BACKGROUND_PALETTE="0x30 0x08 0x0c"
     GAME_SPRITE_PALETTE="0x34 0x08 0x0c 0x0f 0x0b 0x2a 0x00 0x15 0x3f 0x3c 0x03 0x32 0x38 0x02 0x21 0x06"
-
-    echo "  Generating tile data..."
     mkdir -p game_tile_data
     (
         ${sneptile} --sprites --output-dir game_tile_data \
@@ -64,7 +74,7 @@ build_bubbles_for_master_system ()
 
     mkdir -p build/code
     echo "  Compiling..."
-    for file in main text rng save
+    for file in main title text rng save
     do
         # Don't recompile files that are already up to date
         if [ -e "./build/code/${file}.rel" -a "./source/${file}.c" -ot "./build/code/${file}.rel" ]
@@ -78,7 +88,7 @@ build_bubbles_for_master_system ()
     done
 
     # Asset banks
-    for bank in 2 3
+    for bank in 2 3 4
     do
         ${sdcc} -c -mz80 --constseg BANK_${bank} source/bank_${bank}.c -o build/bank_${bank}.rel
     done
@@ -86,12 +96,12 @@ build_bubbles_for_master_system ()
     echo ""
     echo "  Linking..."
     ${sdcc} -o build/Bubbles.ihx -mz80 --no-std-crt0 --data-loc 0xC000 \
-        -Wl-b_BANK_2=0x8000 -Wl-b_BANK_3=0x8000 \
+        -Wl-b_BANK_2=0x8000 -Wl-b_BANK_3=0x8000 -Wl-b_BANK_4=0x8000 \
         ${devkitSMS}/crt0/crt0_sms.rel \
         build/code/*.rel \
         ${SMSlib}/SMSlib.lib \
         ${PSGlib}/PSGlib.lib \
-        build/bank_2.rel build/bank_3.rel || exit 1
+        build/bank_2.rel build/bank_3.rel build/bank_4.rel || exit 1
 
     echo ""
     echo "  Generating ROM..."
