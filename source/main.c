@@ -557,9 +557,7 @@ bool active_bubble_try_pop (void)
 }
 
 
-/*
- * Update the positions of currently falling bubbles.
- */
+/* Falling bubble state. */
 uint8_t fall_queue [64];
 uint8_t fall_queue_head = 0;
 uint8_t fall_queue_tail = 0;
@@ -583,6 +581,19 @@ uint8_t currently_falling_head = 0;
 uint8_t currently_falling_tail = 0;
 uint8_t last_drop_began = 0;
 
+
+/*
+ * Update the positions of currently falling bubbles.
+ *
+ * TODO: Currently, it is likely this function doesn't always complete before
+ *       the VDP begins to draw the active area. This results in occasional
+ *       glitches when new bubbles start to fall. Possibly this could be split
+ *       into two steps:
+ *        1st - Any processing that doesn't need to access the VDP could be done during
+ *              the previous frame's active area, instead of running during VBlank.
+ *        2nd - Inside VBlank, try to avoid any extra calculations and just push
+ *              updates to the VDP.
+ */
 static void draw_fallers (void)
 {
     /* To avoid too many sprites on the same line, only begin a
