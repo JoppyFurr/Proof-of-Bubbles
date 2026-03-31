@@ -981,11 +981,20 @@ bool play_level (uint8_t level)
                 if (launcher_aim > LAUNCHER_AIM_MIN && launcher_aim < LAUNCHER_AIM_CENTRE)
                 {
                     launcher_aim--;
+                    if (tick_holdoff == 0)
+                    {
+                        PSGSFXPlay (tick_sound, 0x0f);
+                        tick_holdoff = 4;
+                    }
                 }
                 else if (launcher_aim > LAUNCHER_AIM_CENTRE && launcher_aim < LAUNCHER_AIM_MAX)
                 {
                     launcher_aim++;
-                    PSGSFXPlay (pop_sound, 0x0f);
+                    if (tick_holdoff == 0)
+                    {
+                        PSGSFXPlay (tick_sound, 0x0f);
+                        tick_holdoff = 4;
+                    }
                 }
             }
         }
