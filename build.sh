@@ -104,7 +104,7 @@ build_bubbles_for_master_system ()
 
     echo ""
     echo "  Generating ROM..."
-    ${ihx2sms} build/Bubbles.ihx Bubbles.sms || exit 1
+    ${ihx2sms} build/Bubbles.ihx "Proof of Bubbles.sms" || exit 1
 
     echo ""
     echo "  Done"
